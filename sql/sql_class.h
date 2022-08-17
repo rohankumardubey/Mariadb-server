@@ -1272,8 +1272,8 @@ public:
 class Server_side_cursor;
 
 /*
-  Struct to catch changes in column metadata that is sent to client. 
-  in the "result set metadata". Used to support 
+  Struct to catch changes in column metadata that is sent to client.
+  in the "result set metadata". Used to support
   MARIADB_CLIENT_CACHE_METADATA.
 */
 struct send_column_info_state
@@ -1286,7 +1286,7 @@ struct send_column_info_state
 
   /*
     Column info can only be changed by PreparedStatement::reprepare()
- 
+
     There is a class of "weird" prepared statements like SELECT ? or SELECT @a
     that are not immutable, and depend on input parameters or user variables
   */
@@ -1394,7 +1394,7 @@ public:
   LEX_CSTRING db;
 
   send_column_info_state column_info_state;
- 
+
   /* This is set to 1 of last call to send_result_to_client() was ok */
   my_bool query_cache_is_applicable;
 
@@ -2057,6 +2057,22 @@ public:
     return(0);
   }
 };
+
+
+struct Suppress_warnings_error_handler : public Internal_error_handler
+{
+public:
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char *sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char *msg,
+                        Sql_condition **cond_hdl) override
+  {
+    return *level == Sql_condition::WARN_LEVEL_WARN;
+  }
+};
+
 
 
 /**
