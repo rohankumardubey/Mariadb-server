@@ -30,8 +30,18 @@
 class select_handler
 {
  public:
+   // Constructor for a single SELECT_LEX (not a part of a unit)
   select_handler(THD *thd_arg, handlerton *ht_arg, SELECT_LEX *sel_lex);
+
+  // Constructor for a unit (UNION/EXCEPT/INTERSECT)
   select_handler(THD *thd_arg, handlerton *ht_arg, SELECT_LEX_UNIT *sel_unit);
+
+  /*
+    Constructor for a SELECT_LEX which is a part of a unit
+    (partial pushdown). Both SELECT_LEX and SELECT_LEX_UNIT are passed
+  */
+  select_handler(THD *thd_arg, handlerton *ht_arg, SELECT_LEX *sel_lex,
+                 SELECT_LEX_UNIT *sel_unit);
 
   virtual ~select_handler();
 
@@ -40,12 +50,15 @@ class select_handler
   virtual bool prepare();
 
   /*
-    Select_handler processes either a single SELECT or a UNIT
-    (multiple SELECTs combined with UNION/EXCEPT/INTERSECT).
-    Only one of the following two class members is initialized while another
-    one is strictly NULL. In case of a single SELECT select_lex is initialized
-    and lex_unit == NULL, in case of UNIT select_lex == NULL
-    and lex_unit is initialized
+    Select_handler processes one of
+    - single SELECT
+    - whole unit (multiple SELECTs combined with UNION/EXCEPT/INTERSECT)
+    - single SELECT that is part of a unit (partial pushdown)
+
+    In the case of single SELECT select_lex is initialized and lex_unit==NULL,
+    in the case of whole UNIT select_lex == NULL and lex_unit is initialized,
+    in the case of partial pushdown both select_lex and lex_unit
+      are initialized
   */
   SELECT_LEX *select_lex;      // Single select to be executed
   SELECT_LEX_UNIT *lex_unit;   // Unit to be executed

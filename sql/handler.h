@@ -1550,7 +1550,8 @@ struct handlerton
     Create and return a select_handler for a single SELECT.
     If the storage engine cannot execute the select statement, return NULL
   */
-  select_handler *(*create_select) (THD *thd, SELECT_LEX *select_lex);
+  select_handler *(*create_select) (THD *thd, SELECT_LEX *select_lex,
+                                   SELECT_LEX_UNIT *select_lex_unit);
 
   /*
     Create and return a select_handler for a unit (i.e. multiple SELECTs

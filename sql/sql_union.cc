@@ -32,7 +32,8 @@
 #include "sql_cte.h"
 #include "item_windowfunc.h"
 
-select_handler *find_select_handler(THD *thd, SELECT_LEX *select_lex);
+select_handler *find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
+                                            SELECT_LEX_UNIT *lex_unit);
 
 bool mysql_union(THD *thd, LEX *lex, select_result *result,
                  SELECT_LEX_UNIT *unit, ulong setup_tables_done_option)
@@ -2244,7 +2245,7 @@ bool st_select_lex_unit::optimize()
             If the UNIT hasn't been pushed down to the engine as a whole,
             try to push down partial SELECTs of this UNIT separately
           */
-          sl->pushdown_select= find_select_handler(thd, sl);
+          sl->pushdown_select= find_partial_select_handler(thd, sl, this);
         }
 
 	saved_error= sl->join->optimize();

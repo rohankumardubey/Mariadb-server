@@ -17,6 +17,7 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_select.h"
+#include "sql_cte.h"
 #include "select_handler.h"
 
 
@@ -50,6 +51,12 @@ select_handler::select_handler(THD *thd_arg, handlerton *ht_arg,
     is_analyze(thd_arg->lex->analyze_stmt)
 {}
 
+select_handler::select_handler(THD *thd_arg, handlerton *ht_arg,
+                               SELECT_LEX *sel_lex, SELECT_LEX_UNIT *sel_unit)
+    : select_lex(sel_lex), lex_unit(sel_unit), table(nullptr), thd(thd_arg),
+      ht(ht_arg), result(sel_lex->join->result),
+      is_analyze(thd_arg->lex->analyze_stmt)
+{}
 
 select_handler::~select_handler()
 {
@@ -64,9 +71,26 @@ TABLE *select_handler::create_tmp_table(THD *thd)
   List<Item> types;
   TMP_TABLE_PARAM tmp_table_param;
   
-  SELECT_LEX_UNIT *u= select_lex? select_lex->master_unit() : lex_unit;
+  SELECT_LEX_UNIT *unit= nullptr;
+  uint unit_parts_count= 0;
 
-  if (u->join_union_item_types(thd, types, 1))
+  if (lex_unit)
+  {
+    unit= lex_unit;
+    SELECT_LEX *sl= unit->first_select();
+    while (sl)
+    {
+      unit_parts_count++;
+      sl= sl->next_select();
+    }
+  }
+  else
+  {
+    unit= select_lex->master_unit();
+    unit_parts_count= 1;
+  }
+
+  if (unit->join_union_item_types(thd, types, unit_parts_count))
     DBUG_RETURN(NULL);
 
   tmp_table_param.init();

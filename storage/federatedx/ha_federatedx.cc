@@ -409,7 +409,8 @@ static derived_handler*
 create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived);
 
 static select_handler*
-create_federatedx_select_handler(THD *thd, SELECT_LEX *sel_lex);
+create_federatedx_select_handler(THD *thd, SELECT_LEX *sel_lex,
+                                 SELECT_LEX_UNIT *sel_unit);
 static select_handler *
 create_federatedx_unit_handler(THD *thd, SELECT_LEX_UNIT *sel_unit);
 

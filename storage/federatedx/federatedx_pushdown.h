@@ -67,6 +67,8 @@ public:
                                TABLE *tbl);
   ha_federatedx_select_handler(THD *thd_arg, SELECT_LEX_UNIT *sel_unit,
                                TABLE *tbl);
+  ha_federatedx_select_handler(THD *thd_arg, SELECT_LEX *sel_lex,
+                               SELECT_LEX_UNIT *sel_unit, TABLE *tbl);
   ~ha_federatedx_select_handler() {}
   int init_scan() { return federatedx_handler_base::init_scan_(); }
   int next_row() { return federatedx_handler_base::next_row_(table); }

@@ -157,9 +157,15 @@ void ha_federatedx_derived_handler::print_error(int, unsigned long)
 {
 }
 
-
-static select_handler *create_federatedx_select_handler(
-  THD *thd, SELECT_LEX *sel_lex)
+/*
+  Create FederatedX select handler for processing either a single select
+  (in this case sel_lex is initialized and lex_unit==NULL)
+  or a select that is part of a unit
+  (in this case both sel_lex and lex_unit are initialized)
+*/
+static select_handler *
+create_federatedx_select_handler(THD *thd, SELECT_LEX *sel_lex,
+                                 SELECT_LEX_UNIT *lex_unit)
 {
   if (!use_pushdown)
     return nullptr;
@@ -171,9 +177,14 @@ static select_handler *create_federatedx_select_handler(
   if (sel_lex->uncacheable & UNCACHEABLE_SIDEEFFECT)
     return NULL;
 
-  return new ha_federatedx_select_handler(thd, sel_lex, tbl);
+  return new ha_federatedx_select_handler(thd, sel_lex, lex_unit, tbl);
 }
 
+/*
+  Create FederatedX select handler for processing a unit as a whole.
+  Term "unit" stands for multiple SELECTs combined with
+  UNION/EXCEPT/INTERSECT operators
+*/
 static select_handler *create_federatedx_unit_handler(
   THD* thd, SELECT_LEX_UNIT *sel_unit)
 {
@@ -189,6 +200,7 @@ static select_handler *create_federatedx_unit_handler(
 
   return new ha_federatedx_select_handler(thd, sel_unit, tbl);
 }
+
 
 /*
   Implementation class of the select_handler interface for FEDERATEDX:
@@ -213,7 +225,6 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(
                                     QT_PARSABLE));
 }
 
-
 ha_federatedx_select_handler::ha_federatedx_select_handler(
     THD *thd, SELECT_LEX_UNIT *lex_unit, TABLE *tbl)
   : select_handler(thd, federatedx_hton, lex_unit), 
@@ -226,6 +237,17 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(
                                   QT_PARSABLE));
 }
 
+ha_federatedx_select_handler::ha_federatedx_select_handler(
+    THD *thd, SELECT_LEX *select_lex, SELECT_LEX_UNIT *lex_unit, TABLE *tbl)
+    : select_handler(thd, federatedx_hton, select_lex, lex_unit),
+      federatedx_handler_base(thd, tbl)
+{
+  query.length(0);
+  select_lex->print(thd, &query,
+                    enum_query_type(QT_VIEW_INTERNAL |
+                                    QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                    QT_PARSABLE));
+}
 
 int federatedx_handler_base::init_scan_()
 {

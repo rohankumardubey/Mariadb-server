@@ -69,6 +69,7 @@
 #include "my_json_writer.h"
 #include "opt_trace.h"
 #include "create_tmp_table.h"
+#include "derived_handler.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -4892,9 +4893,20 @@ void JOIN::cleanup_item_list(List<Item> &items) const
 
 /**
   @brief
-    Look for provision of the select_handler interface by a foreign engine
+    Look for provision of the select_handler interface by a foreign engine.
+    Must not be called directly, use find_single_select_handler() or
+    find_partial_select_handler() instead.
 
-  @param thd   The thread handler
+  @param
+    thd             The thread handler
+    select_lex      SELECT_LEX object, must be passed in the cases of:
+                    - single select pushdown
+                    - partial pushdown (part of a UNION/EXCEPT/INTERSECT)
+                    Must be NULL in case of entire unit pushdown
+    select_lex_unit SELECT_LEX_UNIT object, must be passed in the cases of:
+                    - entire unit pushdown
+                    - partial pushdown (part of a UNION/EXCEPT/INTERSECT)
+                    Must be NULL in case of single select pushdown
 
   @details
     The function checks that this is an upper level select and if so looks
@@ -4912,8 +4924,10 @@ void JOIN::cleanup_item_list(List<Item> &items) const
           0  otherwise
 */
 
-select_handler *find_select_handler(THD *thd, 
-                                    SELECT_LEX *select_lex)
+static
+select_handler *find_select_handler_inner(THD *thd,
+                                    SELECT_LEX *select_lex,
+                                    SELECT_LEX_UNIT *select_lex_unit)
 {
   if (select_lex->master_unit()->outer_select())
     return 0;
@@ -4941,11 +4955,44 @@ select_handler *find_select_handler(THD *thd,
     handlerton *ht= tbl->table->file->partition_ht();
     if (!ht->create_select)
       continue;
-    select_handler *sh= ht->create_select(thd, select_lex);
+    select_handler *sh= ht->create_select(thd, select_lex, select_lex_unit);
     if (sh)
       return sh;
   }
   return 0;
+}
+
+
+/**
+  Wrapper for find_select_handler_inner() for the case of single select
+  pushdown. See more comments at the description of
+  find_select_handler_inner()
+
+*/
+select_handler *find_single_select_handler(THD *thd, SELECT_LEX *select_lex)
+{
+  return find_select_handler_inner(thd, select_lex, nullptr);
+}
+
+
+/**
+  Wrapper for find_select_handler_inner() for the case of partial select
+  pushdown. Partial pushdown means that a unit (i.e. multiple selects combined
+  with UNION/EXCEPT/INTERSECT operators) cannot be pushed down to
+  the storage engine as a whole but some particular selects of this unit can.
+  For example,
+    SELECT a FROM federated.t1  -- can be pushed down to Federated
+    UNION
+    SELECT b FROM local.t2      -- cannot be pushed down, executed locally
+
+  See more comments at the description of find_select_handler_inner()
+
+*/
+select_handler *
+find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
+                            SELECT_LEX_UNIT *select_lex_unit)
+{
+  return find_select_handler_inner(thd, select_lex, select_lex_unit);
 }
 
 
@@ -5058,7 +5105,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
 
   thd->get_stmt_da()->reset_current_row_for_warning(1);
   /* Look for a table owned by an engine with the select_handler interface */
-  select_lex->pushdown_select= find_select_handler(thd, select_lex);
+  select_lex->pushdown_select= find_single_select_handler(thd, select_lex);
 
   if ((err= join->optimize()))
   {
@@ -14425,6 +14472,11 @@ void JOIN_TAB::cleanup()
       }
       DBUG_VOID_RETURN;
     }
+    /*if (table->pos_in_table_list && table->pos_in_table_list->derived)
+    {
+      delete table->pos_in_table_list->derived->derived->dt_handler;
+    }*/
+
     /*
       We need to reset this for next select
       (Tested in part_of_refkey)
