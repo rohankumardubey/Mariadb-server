@@ -3284,6 +3284,9 @@ ibuf_insert_low(
 	}
 
 	ibuf_mtr_start(&mtr);
+	if (mode == BTR_MODIFY_TREE) {
+		mtr_x_lock_index(ibuf.index, &mtr);
+	}
 
 	err = btr_pcur_open(ibuf.index, ibuf_entry, PAGE_CUR_LE, mode, &pcur,
 			    &mtr);
@@ -3293,9 +3296,7 @@ func_exit:
 		ut_free(pcur.old_rec_buf);
 		mem_heap_free(heap);
 
-		if (err == DB_SUCCESS
-		    && BTR_LATCH_MODE_WITHOUT_INTENTION(mode)
-		    == BTR_MODIFY_TREE) {
+		if (err == DB_SUCCESS && mode == BTR_MODIFY_TREE) {
 			ibuf_contract_after_insert(entry_size);
 		}
 
@@ -3342,7 +3343,7 @@ func_exit:
 		until after the IBUF_OP_DELETE has been buffered. */
 
 fail_exit:
-		if (BTR_LATCH_MODE_WITHOUT_INTENTION(mode) == BTR_MODIFY_TREE) {
+		if (mode == BTR_MODIFY_TREE) {
 			mysql_mutex_unlock(&ibuf_mutex);
 			mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);
 		}
@@ -3634,7 +3635,7 @@ skip_watch:
 			      entry, entry_size,
 			      index, page_id, zip_size, thr);
 	if (err == DB_FAIL) {
-		err = ibuf_insert_low(BTR_MODIFY_TREE | BTR_LATCH_FOR_INSERT,
+		err = ibuf_insert_low(BTR_MODIFY_TREE,
 				      op, no_counter, entry, entry_size,
 				      index, page_id, zip_size, thr);
 	}
