@@ -82,10 +82,13 @@ enum btr_op_t {
 	BTR_DELMARK_OP			/*!< Mark a record for deletion */
 };
 
-/** Modification types for the B-tree operation. */
+/** Modification types for the B-tree operation.
+    Note that the order must be DELETE, BOTH, INSERT !!
+ */
 enum btr_intention_t {
 	BTR_INTENTION_DELETE,
-	BTR_INTENTION_BOTH
+	BTR_INTENTION_BOTH,
+	BTR_INTENTION_INSERT
 };
 
 /** For the index->lock scalability improvement, only possibility of clear
@@ -824,12 +827,27 @@ Gets intention in btr_intention_t from latch_mode, and cleares the intention
 at the latch_mode.
 @param latch_mode	in/out: pointer to latch_mode
 @return intention for latching tree */
-static btr_intention_t btr_cur_get_and_clear_intention(ulint *latch_mode)
+static
+btr_intention_t
+btr_cur_get_and_clear_intention(
+	ulint	*latch_mode)
 {
-  btr_intention_t intention= *latch_mode & BTR_LATCH_FOR_DELETE
-    ? BTR_INTENTION_DELETE : BTR_INTENTION_BOTH;
-  *latch_mode&= ~BTR_LATCH_FOR_DELETE;
-  return intention;
+	btr_intention_t	intention;
+
+	switch (*latch_mode & (BTR_LATCH_FOR_INSERT | BTR_LATCH_FOR_DELETE)) {
+	case BTR_LATCH_FOR_INSERT:
+		intention = BTR_INTENTION_INSERT;
+		break;
+	case BTR_LATCH_FOR_DELETE:
+		intention = BTR_INTENTION_DELETE;
+		break;
+	default:
+		/* both or unknown */
+		intention = BTR_INTENTION_BOTH;
+	}
+	*latch_mode &= ulint(~(BTR_LATCH_FOR_INSERT | BTR_LATCH_FOR_DELETE));
+
+	return(intention);
 }
 
 /**
@@ -914,67 +932,75 @@ btr_cur_will_modify_tree(
 
 	const ulint n_recs = page_get_n_recs(page);
 
-	if (!page_has_siblings(page)) {
-		return true;
-	}
+	if (lock_intention <= BTR_INTENTION_BOTH) {
+		compile_time_assert(BTR_INTENTION_DELETE < BTR_INTENTION_BOTH);
+		compile_time_assert(BTR_INTENTION_BOTH < BTR_INTENTION_INSERT);
 
-	ulint margin = rec_size;
-
-	if (lock_intention == BTR_INTENTION_BOTH) {
-		ulint	level = btr_page_get_level(page);
-
-		/* This value is the worst expectation for the node_ptr
-		records to be deleted from this page. It is used to
-		expect whether the cursor position can be the left_most
-		record in this page or not. */
-		ulint   max_nodes_deleted = 0;
-
-		/* By modifying tree operations from the under of this
-		level, logically (2 ^ (level - 1)) opportunities to
-		deleting records in maximum even unreally rare case. */
-		if (level > 7) {
-			/* TODO: adjust this practical limit. */
-			max_nodes_deleted = 64;
-		} else if (level > 0) {
-			max_nodes_deleted = (ulint)1 << (level - 1);
-		}
-		/* check delete will cause. (BTR_INTENTION_BOTH
-		or BTR_INTENTION_DELETE) */
-		if (n_recs <= max_nodes_deleted * 2
-		    || page_rec_is_first(rec, page)) {
-			/* The cursor record can be the left most record
-			in this page. */
+		if (!page_has_siblings(page)) {
 			return true;
 		}
 
-		if (page_has_prev(page)
-		    && page_rec_distance_is_at_most(
-			    page_get_infimum_rec(page), rec,
-			    max_nodes_deleted)) {
-			return true;
+		ulint margin = rec_size;
+
+		if (lock_intention == BTR_INTENTION_BOTH) {
+			ulint	level = btr_page_get_level(page);
+
+			/* This value is the worst expectation for the node_ptr
+			records to be deleted from this page. It is used to
+			expect whether the cursor position can be the left_most
+			record in this page or not. */
+			ulint   max_nodes_deleted = 0;
+
+			/* By modifying tree operations from the under of this
+			level, logically (2 ^ (level - 1)) opportunities to
+			deleting records in maximum even unreally rare case. */
+			if (level > 7) {
+				/* TODO: adjust this practical limit. */
+				max_nodes_deleted = 64;
+			} else if (level > 0) {
+				max_nodes_deleted = (ulint)1 << (level - 1);
+			}
+			/* check delete will cause. (BTR_INTENTION_BOTH
+			or BTR_INTENTION_DELETE) */
+			if (n_recs <= max_nodes_deleted * 2
+			    || page_rec_is_first(rec, page)) {
+				/* The cursor record can be the left most record
+				in this page. */
+				return true;
+			}
+
+			if (page_has_prev(page)
+			    && page_rec_distance_is_at_most(
+				    page_get_infimum_rec(page), rec,
+				    max_nodes_deleted)) {
+				return true;
+			}
+
+			if (page_has_next(page)
+			    && page_rec_distance_is_at_most(
+				    rec, page_get_supremum_rec(page),
+				    max_nodes_deleted)) {
+				return true;
+			}
+
+			/* Delete at leftmost record in a page causes delete
+			& insert at its parent page. After that, the delete
+			might cause btr_compress() and delete record at its
+			parent page. Thus we should consider max deletes. */
+			margin *= max_nodes_deleted;
 		}
 
-		if (page_has_next(page)
-		    && page_rec_distance_is_at_most(
-			    rec, page_get_supremum_rec(page),
-			    max_nodes_deleted)) {
-			return true;
+		/* Safe because we already have SX latch of the index tree */
+		if (page_get_data_size(page)
+		    < margin + BTR_CUR_PAGE_COMPRESS_LIMIT(index)) {
+			return(true);
 		}
-
-		/* Delete at leftmost record in a page causes delete
-		& insert at its parent page. After that, the delete
-		might cause btr_compress() and delete record at its
-		parent page. Thus we should consider max deletes. */
-		margin *= max_nodes_deleted;
 	}
 
-	/* Safe because we already have SX latch of the index tree */
-	if (page_get_data_size(page)
-	    < margin + BTR_CUR_PAGE_COMPRESS_LIMIT(index)) {
-		return(true);
-	}
+	if (lock_intention >= BTR_INTENTION_BOTH) {
+		/* check insert will cause. BTR_INTENTION_BOTH
+		or BTR_INTENTION_INSERT*/
 
-	if (lock_intention == BTR_INTENTION_BOTH) {
 		/* Once we invoke the btr_cur_limit_optimistic_insert_debug,
 		we should check it here in advance, since the max allowable
 		records in a page is limited. */
@@ -1020,9 +1046,18 @@ btr_cur_need_opposite_intention(
 	btr_intention_t	lock_intention,
 	const rec_t*	rec)
 {
-  return lock_intention == BTR_INTENTION_DELETE &&
-    ((page_has_prev(page) && page_rec_is_first(rec, page)) ||
-     (page_has_next(page) && page_rec_is_last(rec, page)));
+	switch (lock_intention) {
+	case BTR_INTENTION_DELETE:
+		return (page_has_prev(page) && page_rec_is_first(rec, page)) ||
+			(page_has_next(page) && page_rec_is_last(rec, page));
+	case BTR_INTENTION_INSERT:
+		return page_has_next(page) && page_rec_is_last(rec, page);
+	case BTR_INTENTION_BOTH:
+		return(false);
+	}
+
+	MY_ASSERT_UNREACHABLE();
+	return(false);
 }
 
 /**
@@ -1386,7 +1421,8 @@ dberr_t btr_cur_search_to_nth_level(dict_index_t *index, ulint level,
 		    > BTR_CUR_FINE_HISTORY_LENGTH) {
 x_latch_index:
 			mtr_x_lock_index(index, mtr);
-		} else if (index->is_spatial()) {
+		} else if (index->is_spatial()
+			   && lock_intention <= BTR_INTENTION_BOTH) {
 			/* X lock the if there is possibility of
 			pessimistic delete on spatial index. As we could
 			lock upward for the tree */
@@ -1915,6 +1951,7 @@ retry_page_get:
 		    && btr_cur_need_opposite_intention(
 			page, lock_intention, node_ptr)) {
 
+need_opposite_intention:
 			ut_ad(upper_rw_latch == RW_X_LATCH);
 
 			if (n_releases > 0) {
@@ -2239,6 +2276,30 @@ retry_page_get:
 		}
 
 		goto search_loop;
+	} else if (!dict_index_is_spatial(index)
+		   && latch_mode == BTR_MODIFY_TREE
+		   && lock_intention == BTR_INTENTION_INSERT
+		   && page_has_next(page)
+		   && page_rec_is_last(page_cur_get_rec(page_cursor), page)) {
+
+		/* btr_insert_into_right_sibling() might cause
+		deleting node_ptr at upper level */
+
+		guess = NULL;
+
+		if (height == 0) {
+			/* release the leaf pages if latched */
+			for (uint i = 0; i < 3; i++) {
+				if (latch_leaves.blocks[i] != NULL) {
+					mtr_release_block_at_savepoint(
+						mtr, latch_leaves.savepoints[i],
+						latch_leaves.blocks[i]);
+					latch_leaves.blocks[i] = NULL;
+				}
+			}
+		}
+
+		goto need_opposite_intention;
 	}
 
 	if (level != 0) {

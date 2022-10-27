@@ -125,8 +125,16 @@ enum btr_latch_mode {
 	block->lock range.*/
 	BTR_LATCH_FOR_DELETE = 512,
 
-	/** Attempt to purge a secondary index record in the tree. */
-	BTR_PURGE_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE
+	/** In the case of BTR_MODIFY_TREE, the caller specifies
+	the intention to delete record only. It is used to optimize
+	block->lock range.*/
+	BTR_LATCH_FOR_INSERT = 1024,
+
+	/** Attempt to delete a record in the tree. */
+	BTR_PURGE_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
+
+	/** Attempt to insert a record into the tree. */
+	BTR_INSERT_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_INSERT
 };
 
 /** This flag ORed to BTR_INSERT says that we can ignore possible
@@ -140,7 +148,7 @@ to find proper rec to undo insert.*/
 
 /** Try to delete mark the record at the searched position when the
 record is in spatial index */
-#define BTR_RTREE_DELETE_MARK	8192U
+#define BTR_RTREE_DELETE_MARK	16384U
 
 #define BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode)		\
 	((latch_mode) & ulint(~(BTR_INSERT			\
@@ -150,10 +158,12 @@ record is in spatial index */
 				| BTR_DELETE			\
 				| BTR_IGNORE_SEC_UNIQUE		\
 				| BTR_ALREADY_S_LATCHED		\
+				| BTR_LATCH_FOR_INSERT		\
 				| BTR_LATCH_FOR_DELETE)))
 
 #define BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode)		\
-	((latch_mode) & ulint(~(BTR_LATCH_FOR_DELETE)))
+	((latch_mode) & ulint(~(BTR_LATCH_FOR_INSERT		\
+				| BTR_LATCH_FOR_DELETE)))
 
 /**************************************************************//**
 Checks and adjusts the root node of a tree during IMPORT TABLESPACE.
