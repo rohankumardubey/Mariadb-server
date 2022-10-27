@@ -2486,10 +2486,14 @@ btr_attach_half_pages(
 	if (prev_page_no != FIL_NULL && direction == FSP_DOWN) {
 		prev_block = btr_block_get(*index, prev_page_no, RW_X_LATCH,
 					   !level, mtr);
+		ut_ad(!prev_block->page.lock.not_recursive()
+		      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
 	}
 	if (next_page_no != FIL_NULL && direction != FSP_DOWN) {
 		next_block = btr_block_get(*index, next_page_no, RW_X_LATCH,
 					   !level, mtr);
+		ut_ad(!next_block->page.lock.not_recursive()
+		      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
 	}
 
 	/* Build the node pointer (= node key and page address) for the upper
@@ -3605,6 +3609,8 @@ btr_compress(
 	} else {
 		offsets = btr_page_get_father_block(
 			NULL, heap, index, block, mtr, &father_cursor);
+		ut_ad(!father_cursor.page_cur.block->page.lock.not_recursive()
+		      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
 	}
 
 	if (adjust) {
