@@ -2747,17 +2747,6 @@ dict_index_build_internal_fts(
 }
 /*====================== FOREIGN KEY PROCESSING ========================*/
 
-/*********************************************************************//**
-Checks if a table is referenced by foreign keys.
-@return TRUE if table is referenced by a foreign key */
-ibool
-dict_table_is_referenced_by_foreign_key(
-/*====================================*/
-	const dict_table_t*	table)	/*!< in: InnoDB table */
-{
-	return(!table->referenced_set.empty());
-}
-
 /**********************************************************************//**
 Removes a foreign constraint struct from the dictionary cache. */
 void
