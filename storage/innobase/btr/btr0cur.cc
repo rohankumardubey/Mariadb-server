@@ -1412,6 +1412,9 @@ dberr_t btr_cur_search_to_nth_level(dict_index_t *index, ulint level,
 
 	switch (latch_mode) {
 	case BTR_MODIFY_TREE:
+#if 1 // Work around MDEV-29835 hangs
+		mtr_x_lock_index(index, mtr);
+#else
 		/* Most of delete-intended operations are purging.
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
@@ -1430,6 +1433,7 @@ x_latch_index:
 		} else {
 			mtr_sx_lock_index(index, mtr);
 		}
+#endif
 		upper_rw_latch = RW_X_LATCH;
 		break;
 	case BTR_CONT_MODIFY_TREE:
