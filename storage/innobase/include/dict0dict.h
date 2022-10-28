@@ -421,14 +421,6 @@ dict_foreign_add_to_cache(
 	dict_err_ignore_t	ignore_err)
 				/*!< in: error to be ignored */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-/*********************************************************************//**
-Checks if a table is referenced by foreign keys.
-@return TRUE if table is referenced by a foreign key */
-ibool
-dict_table_is_referenced_by_foreign_key(
-/*====================================*/
-	const dict_table_t*	table)	/*!< in: InnoDB table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /**********************************************************************//**
 Replace the index passed in with another equivalent index in the
 foreign key lists of the table.
