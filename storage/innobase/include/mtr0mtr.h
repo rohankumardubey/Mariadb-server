@@ -355,7 +355,7 @@ public:
   {
     mtr_memo_slot_t *slot= m_memo.at<mtr_memo_slot_t*>(savepoint);
     ut_ad(slot->type == MTR_MEMO_BUF_FIX);
-    slot->type= MTR_MEMO_PAGE_X_FIX;
+    slot->type= MTR_MEMO_PAGE_S_FIX;
   }
 
   /** Upgrade U locks on a block to X */
