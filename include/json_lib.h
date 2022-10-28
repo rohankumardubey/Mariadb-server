@@ -2,6 +2,7 @@
 #define JSON_LIB_INCLUDED
 
 #include <my_sys.h>
+#include "hash.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -442,6 +443,21 @@ int json_normalize(DYNAMIC_STRING *result,
                    const char *s, size_t size, CHARSET_INFO *cs);
 
 int json_skip_array_and_count(json_engine_t *j, int* n_item);
+
+/*
+This structure is to get information only for "type", including
+types for all keys(properties) in an object for any given key-value pair.
+*/
+typedef struct json_schema_type_info
+{
+  enum json_value_types type;
+  char* key_name;
+  HASH properties;
+} st_json_schema_type_info;
+
+
+uchar* get_key_name(const char *key_name, size_t *length,
+                     my_bool /* unused */);
 
 #ifdef  __cplusplus
 }

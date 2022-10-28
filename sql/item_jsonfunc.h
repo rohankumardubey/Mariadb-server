@@ -791,4 +791,210 @@ public:
   { return get_item_copy<Item_func_json_overlaps>(thd, this); }
 };
 
+enum common_constraints_flag {HAS_NO_GEN_CONSTRAINT= 0, HAS_CONST= 2, HAS_ENUM= 4};
+class Json_schema
+{
+	public:
+	  enum json_value_types type;
+	  char *const_json_value;
+	  HASH enum_values;
+	  uint common_constraint_flag;
+    char *key_name;
+    Json_schema()
+    {
+      const_json_value= NULL;
+      common_constraint_flag= HAS_NO_GEN_CONSTRAINT;
+      type= JSON_VALUE_UNINITIALIZED;
+      key_name= NULL;
+    }
+    virtual ~Json_schema() = default;
+
+    virtual bool handle_common_keyword(const char* curr_key, int key_len,
+                                      json_engine_t *je, List <HASH> *hash_list,
+                                      st_json_schema_type_info *type_info);
+    void set_keyword(char *name, int len, THD *thd);
+    virtual bool handle_type_specific_keyword(const char* keyword, int key_len,
+                                              json_engine_t *je, double *val,
+                                              List <HASH> *hash_list,
+                                              st_json_schema_type_info *type_info,
+                                              List<HASH> *type_info_hash_list)
+    { return false; }
+    bool handle_keywords(json_engine_t *je, List <HASH> *hash_list,
+                         st_json_schema_type_info *type_info,
+                         List<HASH> *type_info_hash_list);
+    virtual bool validate_type_specific_constraint(json_engine_t *je)
+    { return false;}
+    virtual bool validate_json_for_common_constraint(json_engine_t *je);
+    static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+    { return alloc_root(mem_root, size); }
+};
+
+enum bool_constraint_flag {HAS_NONE= 0, HAS_TRUE= 2, HAS_FALSE= 4};
+class Json_schema_boolean : public Json_schema
+{
+  public:
+    uint bool_constraint_flag_enum;
+    uint bool_constraint_flag_const;
+    Json_schema_boolean(enum json_value_types val_type)
+    {
+     type= val_type;
+     bool_constraint_flag_enum= bool_constraint_flag_const= HAS_NONE;
+    }
+    bool handle_common_keyword(const char* curr_key,
+                               int key_len, json_engine_t *je,
+                               List <HASH> *hash_list,
+                               st_json_schema_type_info *type_info);
+    bool validate_json_for_common_constraint(json_engine_t *je);
+};
+
+enum null_constraint_flag {HAS_NO_NULL= 0, HAS_NULL= 2};
+class Json_schema_null : public Json_schema
+{
+  public:
+    uint null_constraint_flag_enum;
+    uint null_constraint_flag_const;
+    Json_schema_null()
+    {
+      null_constraint_flag_enum= null_constraint_flag_const= 0;
+      type= JSON_VALUE_NULL;
+    }
+    bool handle_common_keyword(const char* curr_key, int key_len,
+                               json_engine_t *je, List <HASH> *hash_list,
+                               st_json_schema_type_info *type_info);
+    bool validate_json_for_common_constraint(json_engine_t *je);
+};
+
+enum number_property_flag { HAS_NO_NUM_VALUE_CONSTRAINT=0, HAS_MIN=2, HAS_EXCLUSIVE_MIN= 4,
+                          HAS_MAX=8, HAS_EXCLUSIVE_MAX= 16, HAS_MULTIPLE_OF=32 };
+class Json_schema_number : public Json_schema
+{
+	public:
+    uint max, min, multiple_of, ex_min, ex_max;
+    uint num_value_constraint;
+    Json_schema_number()
+    {
+      type= JSON_VALUE_NUMBER;
+      num_value_constraint= HAS_NO_NUM_VALUE_CONSTRAINT;
+    }
+    bool handle_type_specific_keyword(const char* keyword, int key_len,
+                                      json_engine_t *je, double *val,
+                                      List <HASH> *hash_list,
+                                      st_json_schema_type_info *type_info,
+                                      List<HASH> *type_info_hash_list);
+    bool validate_type_specific_constraint(json_engine_t *je);
+};
+
+enum string_property_flag
+{ HAS_NO_STR_VALUE_CONSTRAINT= 0, HAS_MAX_LEN= 2, HAS_MIN_LEN= 4};
+
+class Json_schema_string : public Json_schema
+{
+  public:
+    double max_len, min_len;
+    uint str_value_constraint;
+    Json_schema_string()
+    {
+      type= JSON_VALUE_STRING;
+      str_value_constraint= HAS_NO_STR_VALUE_CONSTRAINT;
+    }
+    bool handle_type_specific_keyword(const char* keyword, int key_len,
+                                      json_engine_t *je, double *val,
+                                      List <HASH> *hash_list,
+                                      st_json_schema_type_info *type_info,
+                                      List<HASH> *type_info_hash_list);
+    bool validate_type_specific_constraint(json_engine_t *je);
+};
+
+ enum array_property_flag
+     { HAS_NO_ARRAY_FLAG= 0, HAS_MAX_ITEMS= 2, HAS_MIN_ITEMS= 4, HAS_MAX_CONTAINS=8,
+       HAS_MIN_CONTAINS= 16, HAS_UNIQUE= 32, HAS_PREFIX= 64, ALLOW_ADDITIONAL_ITEMS= 128};
+
+class Json_schema_array : public Json_schema
+{
+	public:
+	 double max_items, min_items, min_contains, max_contains;
+     enum json_value_types allowed_item_type;
+     enum json_value_types contains_item_type;
+     uint arr_value_constraint;
+     List <Json_schema> prefix_items;
+
+    Json_schema_array()
+    {
+      type= JSON_VALUE_ARRAY;
+      arr_value_constraint= ALLOW_ADDITIONAL_ITEMS;
+      allowed_item_type= contains_item_type= JSON_VALUE_UNINITIALIZED;
+      prefix_items.empty();
+    }
+    bool handle_type_specific_keyword(const char* keyword, int key_len,
+                                      json_engine_t *je, double *val,
+                                      List <HASH> *hash_list,
+                                      st_json_schema_type_info *type_info,
+                                      List<HASH> *type_info_hash_list);
+    bool validate_type_specific_constraint(json_engine_t *je);
+};
+
+enum object_property_flag
+{ HAS_NO_OBJECT_CONSTRAINT= 0, HAS_PROPERTY= 2, HAS_REQUIRED= 4,
+  HAS_MAX_PROPERTIES= 8, HAS_MIN_PROPERTIES= 16,
+  HAS_ADDITIONAL_PROPERTY_ALLOWED= 32};
+class Json_schema_object : public Json_schema
+{
+  public:
+  int max_properties, min_properties;
+  uint object_constraint;
+  HASH properties;
+  List<String> required_properties;
+
+  Json_schema_object()
+  {
+    type= JSON_VALUE_OBJECT;
+    object_constraint= HAS_NO_OBJECT_CONSTRAINT;
+    required_properties.empty();
+  }
+  bool handle_type_specific_keyword(const char* keyword, int key_len,
+                                    json_engine_t *je, double *val,
+                                    List <HASH> *hash_list,
+                                    st_json_schema_type_info *type_info,
+                                    List<HASH> *type_info_hash_list);
+  bool validate_type_specific_constraint(json_engine_t *je);
+};
+
+
+class Item_func_json_schema_valid: public Item_bool_func
+{
+  String tmp_js;
+  bool a2_constant, a2_parsed, schema_validated;
+  String tmp_val, *val;
+  Json_schema *schema;
+  List<HASH> hash_list;
+
+public:
+  Item_func_json_schema_valid(THD *thd, Item *a, Item *b):
+    Item_bool_func(thd, a, b) { hash_list.empty(); schema_validated= false; schema= NULL;}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("json_schema_valid") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  longlong val_int() override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_json_schema_valid>(thd, this); }
+  void cleanup()
+  {
+    DBUG_ENTER("Item_func_json_schema_valid::cleanup");
+    Item_bool_func::cleanup();
+
+    List_iterator<HASH> it(hash_list);
+    HASH *curr_hash;
+    while ((curr_hash= it++))
+    {if (my_hash_inited(curr_hash))
+       my_hash_free(curr_hash);
+    }
+    hash_list.empty();
+
+    DBUG_VOID_RETURN;
+  }
+};
+
 #endif /* ITEM_JSONFUNC_INCLUDED */
