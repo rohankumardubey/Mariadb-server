@@ -1583,7 +1583,7 @@ row_log_table_apply_insert_low(
 
 		entry = row_build_index_entry(row, NULL, index, heap);
 		error = row_ins_sec_index_entry_low(
-			flags, BTR_MODIFY_TREE,
+			flags, BTR_INSERT_TREE,
 			index, offsets_heap, heap, entry,
 			thr_get_trx(thr)->id, thr);
 
@@ -1696,8 +1696,7 @@ err_exit:
 		mtr->start();
 		index->set_modified(*mtr);
 		error = btr_pcur_open(index, entry, PAGE_CUR_LE,
-				      BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-				      pcur, mtr);
+				      BTR_PURGE_TREE, pcur, mtr);
 		if (error) {
 			goto err_exit;
 		}
@@ -1780,8 +1779,7 @@ row_log_table_apply_delete(
 	mtr_start(&mtr);
 	index->set_modified(mtr);
 	dberr_t err = btr_pcur_open(index, old_pk, PAGE_CUR_LE,
-				    BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-				    &pcur, &mtr);
+				    BTR_PURGE_TREE, &pcur, &mtr);
 	if (err != DB_SUCCESS) {
 		goto all_done;
 	}
@@ -2111,7 +2109,7 @@ func_exit_committed:
 		error = row_ins_sec_index_entry_low(
 			BTR_CREATE_FLAG | BTR_NO_LOCKING_FLAG
 			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG,
-			BTR_MODIFY_TREE, index, offsets_heap, heap,
+			BTR_INSERT_TREE, index, offsets_heap, heap,
 			entry, thr_get_trx(thr)->id, thr);
 
 		/* Report correct index name for duplicate key error. */
