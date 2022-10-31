@@ -326,7 +326,7 @@ btr_pcur_open_low(
 				PAGE_CUR_LE, not PAGE_CUR_GE, as the latter
 				may end up on the previous page from the
 				record! */
-	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
+	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 	ib_uint64_t	autoinc,/*!< in: PAGE_ROOT_AUTO_INC to be written
 				(0 if none) */
@@ -357,7 +357,8 @@ cursor.
 @return DB_SUCCESS on success or error code otherwise. */
 inline
 dberr_t btr_pcur_open_with_no_init(dict_index_t *index, const dtuple_t *tuple,
-                                   page_cur_mode_t mode, ulint latch_mode,
+                                   page_cur_mode_t mode,
+                                   btr_latch_mode latch_mode,
                                    btr_pcur_t *cursor, mtr_t *mtr)
 {
   cursor->latch_mode= BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode);
@@ -380,7 +381,7 @@ btr_pcur_open_at_index_side(
 	bool		from_left,	/*!< in: true if open to the low end,
 					false if to the high end */
 	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,	/*!< in: latch mode */
+	btr_latch_mode	latch_mode,	/*!< in: latch mode */
 	btr_pcur_t*	pcur,		/*!< in/out: cursor */
 	bool		init_pcur,	/*!< in: whether to initialize pcur */
 	ulint		level,		/*!< in: level to search for

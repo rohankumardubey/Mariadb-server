@@ -3182,7 +3182,7 @@ or clustered
 static TRANSACTIONAL_TARGET MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 ibuf_insert_low(
-	ulint			mode,
+	btr_latch_mode		mode,
 	ibuf_op_t		op,
 	ibool			no_counter,
 	const dtuple_t*		entry,
@@ -3995,7 +3995,7 @@ ibuf_restore_pos(
 	const page_id_t	page_id,/*!< in: page identifier */
 	const dtuple_t*	search_tuple,
 				/*!< in: search tuple for entries of page_no */
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_PURGE_TREE */
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF or BTR_PURGE_TREE */
 	btr_pcur_t*	pcur,	/*!< in/out: persistent cursor whose
 				position is to be restored */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */

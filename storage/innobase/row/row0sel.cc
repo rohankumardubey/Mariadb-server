@@ -3640,7 +3640,8 @@ record with the same ordering prefix in in the B-tree index
 @return true if we may need to process the record the cursor is now
 positioned on (i.e. we should not go to the next record yet) */
 static bool sel_restore_position_for_mysql(bool *same_user_rec,
-                                           ulint latch_mode, btr_pcur_t *pcur,
+                                           btr_latch_mode latch_mode,
+                                           btr_pcur_t *pcur,
                                            bool moves_up, mtr_t *mtr)
 {
 	auto status = pcur->restore_position(latch_mode, mtr);

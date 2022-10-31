@@ -105,7 +105,7 @@ btr_pcur_open_low(
 				PAGE_CUR_LE, not PAGE_CUR_GE, as the latter
 				may end up on the previous page from the
 				record! */
-	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
+	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 	ib_uint64_t	autoinc,/*!< in: PAGE_ROOT_AUTO_INC to be written
 				(0 if none) */
@@ -127,7 +127,8 @@ cursor.
 @return DB_SUCCESS on success or error code otherwise. */
 inline
 dberr_t btr_pcur_open_with_no_init(dict_index_t *index, const dtuple_t *tuple,
-                                   page_cur_mode_t mode, ulint latch_mode,
+                                   page_cur_mode_t mode,
+                                   btr_latch_mode latch_mode,
                                    btr_pcur_t *cursor, mtr_t *mtr);
 
 /*****************************************************************//**
@@ -139,7 +140,7 @@ btr_pcur_open_at_index_side(
 	bool		from_left,	/*!< in: true if open to the low end,
 					false if to the high end */
 	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,	/*!< in: latch mode */
+	btr_latch_mode	latch_mode,	/*!< in: latch mode */
 	btr_pcur_t*	pcur,		/*!< in/out: cursor */
 	bool		init_pcur,	/*!< in: whether to initialize pcur */
 	ulint		level,		/*!< in: level to search for
@@ -380,48 +381,41 @@ struct btr_pcur_t{
 	positioned:
 	we say then that the cursor is detached; it can be restored to
 	attached if the old position was stored in old_rec */
-	ulint		latch_mode;
+	btr_latch_mode	latch_mode = BTR_NO_LATCHES;
 	/** true if old_rec is stored */
-	bool		old_stored;
+	bool		old_stored = false;
 	/** if cursor position is stored, contains an initial segment of the
 	latest record cursor was positioned either on, before or after */
-	rec_t*		old_rec;
+	rec_t*		old_rec = nullptr;
 	/** btr_cur.index->n_core_fields when old_rec was copied */
-	uint16		old_n_core_fields;
+	uint16		old_n_core_fields = 0;
 	/** number of fields in old_rec */
-	uint16		old_n_fields;
+	uint16		old_n_fields = 0;
 	/** BTR_PCUR_ON, BTR_PCUR_BEFORE, or BTR_PCUR_AFTER, depending on
 	whether cursor was on, before, or after the old_rec record */
-	enum btr_pcur_pos_t	rel_pos;
+	btr_pcur_pos_t	rel_pos = btr_pcur_pos_t(0);
 	/** buffer block when the position was stored */
 	buf::Block_hint		block_when_stored;
 	/** the modify clock value of the buffer block when the cursor position
 	was stored */
-	ib_uint64_t	modify_clock;
+	ib_uint64_t	modify_clock = 0;
 	/** btr_pcur_store_position() and btr_pcur_restore_position() state. */
-	enum pcur_pos_t	pos_state;
+	enum pcur_pos_t	pos_state = BTR_PCUR_NOT_POSITIONED;
 	/** PAGE_CUR_G, ... */
-	page_cur_mode_t	search_mode;
+	page_cur_mode_t	search_mode = PAGE_CUR_UNSUPP;
 	/** the transaction, if we know it; otherwise this field is not defined;
 	can ONLY BE USED in error prints in fatal assertion failures! */
-	trx_t*		trx_if_known;
+	trx_t*		trx_if_known = nullptr;
 	/*-----------------------------*/
 	/* NOTE that the following fields may possess dynamically allocated
 	memory which should be freed if not needed anymore! */
 
 	/** NULL, or a dynamically allocated buffer for old_rec */
-	byte*		old_rec_buf;
+	byte*		old_rec_buf = nullptr;
 	/** old_rec_buf size if old_rec_buf is not NULL */
-	ulint		buf_size;
+	ulint		buf_size = 0;
 
-	btr_pcur_t() :
-		btr_cur(), latch_mode(RW_NO_LATCH),
-		old_stored(false), old_rec(NULL),
-		old_n_fields(0), rel_pos(btr_pcur_pos_t(0)),
-		block_when_stored(),
-		modify_clock(0), pos_state(BTR_PCUR_NOT_POSITIONED),
-		search_mode(PAGE_CUR_UNSUPP), trx_if_known(NULL),
-		old_rec_buf(NULL), buf_size(0)
+	btr_pcur_t() : btr_cur()
 	{
 		btr_cur.init();
 	}
@@ -451,7 +445,7 @@ struct btr_pcur_t{
 	@retval NOT_SAME cursor position is not on user rec or points on
 	the record with not the same uniq field values as in the stored
 	@retval CORRUPTED if the index is corrupted */
-	restore_status restore_position(ulint latch_mode, mtr_t *mtr);
+	restore_status restore_position(btr_latch_mode latch_mode, mtr_t *mtr);
 };
 
 inline buf_block_t *btr_pcur_get_block(btr_pcur_t *cursor)
@@ -482,7 +476,7 @@ btr_pcur_open_on_user_rec(
 	dict_index_t*	index,		/*!< in: index */
 	const dtuple_t*	tuple,		/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,		/*!< in: PAGE_CUR_L, ... */
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF or
+	btr_latch_mode	latch_mode,	/*!< in: BTR_SEARCH_LEAF or
 					BTR_MODIFY_LEAF */
 	btr_pcur_t*	cursor,		/*!< in: memory buffer for persistent
 					cursor */
