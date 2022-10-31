@@ -1321,7 +1321,7 @@ class dict_sys_t
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
 #ifdef UNIV_DEBUG
   /** whether latch is being held in exclusive mode (by any thread) */
-  bool latch_ex;
+  Atomic_relaxed<pthread_t> latch_ex;
   /** number of S-latch holders */
   Atomic_counter<uint32_t> latch_readers;
 #endif
@@ -1495,11 +1495,12 @@ public:
   /** @return whether any thread (not necessarily the current thread)
   is holding the latch; that is, this check may return false
   positives */
-  bool frozen() const { return latch_readers || locked(); }
+  bool frozen() const { return latch_readers || latch_ex; }
   /** @return whether any thread (not necessarily the current thread)
-  is holding the exclusive latch; that is, this check may return false
-  positives */
-  bool locked() const { return latch_ex; }
+  is holding a shared latch */
+  bool frozen_not_locked() const { return latch_readers; }
+  /** @return whether the current thread holds the exclusive latch */
+  bool locked() const { return latch_ex == pthread_self(); }
 #endif
 private:
   /** Acquire the exclusive latch */
@@ -1518,7 +1519,7 @@ public:
     {
       ut_ad(!latch_readers);
       ut_ad(!latch_ex);
-      ut_d(latch_ex= true);
+      ut_d(latch_ex= pthread_self());
     }
     else
       lock_wait(SRW_LOCK_ARGS(file, line));
@@ -1535,9 +1536,9 @@ public:
   /** Unlock the data dictionary cache. */
   void unlock()
   {
-    ut_ad(latch_ex);
+    ut_ad(latch_ex == pthread_self());
     ut_ad(!latch_readers);
-    ut_d(latch_ex= false);
+    ut_d(latch_ex= 0);
     latch.wr_unlock();
   }
   /** Acquire a shared lock on the dictionary cache. */
