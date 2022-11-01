@@ -466,9 +466,8 @@ err_exit:
 	ib::info() << "Dumping the change buffer";
 	ibuf_mtr_start(&mtr);
 	btr_pcur_t pcur;
-	if (DB_SUCCESS == btr_pcur_open_at_index_side(
-		    true, ibuf.index, BTR_SEARCH_LEAF, &pcur,
-		    true, 0, &mtr)) {
+	if (DB_SUCCESS
+	    == pcur.open_leaf(true, ibuf.index, BTR_SEARCH_LEAF, &mtr)) {
 		while (btr_pcur_move_to_next_user_rec(&pcur, &mtr)) {
 			rec_print_old(stderr, btr_pcur_get_rec(&pcur));
 		}
@@ -2988,8 +2987,8 @@ ibuf_update_max_tablespace_id(void)
 
 	ibuf_mtr_start(&mtr);
 
-	if (btr_pcur_open_at_index_side(false, ibuf.index, BTR_SEARCH_LEAF,
-					&pcur, true, 0, &mtr) != DB_SUCCESS) {
+	if (pcur.open_leaf(false, ibuf.index, BTR_SEARCH_LEAF, &mtr)
+	    != DB_SUCCESS) {
 func_exit:
 		ibuf_mtr_commit(&mtr);
 		return;

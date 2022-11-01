@@ -1200,9 +1200,8 @@ row_search_on_row_ref(
 	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
 		ut_ad(ref->is_metadata());
 		ut_ad(ref->n_fields <= index->n_uniq);
-		if (btr_pcur_open_at_index_side(
-			    true, index, mode, pcur, true, 0, mtr)
-		    != DB_SUCCESS
+		btr_pcur_init(pcur);
+		if (pcur->open_leaf(true, index, mode, mtr) != DB_SUCCESS
 		    || !btr_pcur_move_to_next_user_rec(pcur, mtr)) {
 			return false;
 		}

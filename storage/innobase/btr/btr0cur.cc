@@ -2418,7 +2418,7 @@ func_exit:
 dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
                              btr_latch_mode latch_mode, mtr_t *mtr)
 {
-  ulint node_ptr_max_size = srv_page_size / 2;
+  ulint node_ptr_max_size= srv_page_size / 2;
   btr_intention_t lock_intention;
   buf_block_t *tree_blocks[BTR_MAX_LEVELS]; // FIXME: just use mtr->m_memo
   ulint tree_savepoints[BTR_MAX_LEVELS];
@@ -2445,44 +2445,40 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
   /* Store the position of the tree latch we push to mtr so that we
   know how to release it when we have latched the leaf node */
 
-  const auto savepoint= mtr->get_savepoint();
+  auto savepoint= mtr->get_savepoint();
 
-  rw_lock_type_t upper_rw_latch;
+  rw_lock_type_t upper_rw_latch= RW_X_LATCH;
 
   switch (latch_mode) {
   case BTR_CONT_MODIFY_TREE:
   case BTR_CONT_SEARCH_TREE:
-    upper_rw_latch= RW_NO_LATCH;
+    abort();
     break;
   case BTR_MODIFY_TREE:
-    /* Most of delete-intended operations are purging.  Free blocks
-    and read IO bandwidth should be prior for them, when the history
-    list is glowing huge. */
+    /* Most of delete-intended operations are purging. Free blocks
+    and read IO bandwidth should be prioritized for them, when the
+    history list is growing huge. */
+    savepoint+= sizeof(mtr_memo_slot_t);
     if (lock_intention == BTR_INTENTION_DELETE
         && buf_pool.n_pend_reads
         && trx_sys.history_size_approx() > BTR_CUR_FINE_HISTORY_LENGTH)
       mtr_x_lock_index(index, mtr);
     else
       mtr_sx_lock_index(index, mtr);
-    upper_rw_latch= RW_X_LATCH;
     break;
   default:
-    ut_ad(!latch_by_caller
-          || mtr->memo_contains_flagged(&index->lock,
-                                        MTR_MEMO_SX_LOCK
-                                        | MTR_MEMO_S_LOCK));
-    if (srv_read_only_mode)
-      upper_rw_latch= RW_NO_LATCH;
-    else
-    {
-      upper_rw_latch= RW_S_LATCH;
-      if (!latch_by_caller)
-      {
-        ut_ad(latch_mode != BTR_SEARCH_TREE);
-        mtr_s_lock_index(index, mtr);
-      }
-    }
+    ut_ad(!latch_by_caller ||
+          mtr->memo_contains_flagged(&index->lock,
+                                     MTR_MEMO_SX_LOCK | MTR_MEMO_S_LOCK));
+    upper_rw_latch= RW_S_LATCH;
+    if (latch_by_caller)
+      break;
+    ut_ad(latch_mode != BTR_SEARCH_TREE);
+    savepoint+= sizeof(mtr_memo_slot_t);
+    mtr_s_lock_index(index, mtr);
   }
+
+  ut_ad(savepoint == mtr->get_savepoint());
 
   const rw_lock_type_t root_leaf_rw_latch=
     btr_cur_latch_for_root_leaf(latch_mode);
@@ -2499,15 +2495,17 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
   {
     ut_ad(n_blocks < BTR_MAX_LEVELS);
 #if 0 // FIXME: encryption.innodb_onlinealter_encryption innodb.alter_algorithm
-    ut_ad(savepoint + n_blocks == mtr->get_savepoint());
+    ut_ad(savepoint + n_blocks * sizeof(mtr_memo_slot_t) == mtr->get_savepoint());
 #endif
     tree_savepoints[n_blocks]= mtr->get_savepoint();
 
-    const auto rw_latch= upper_rw_latch;
+    const rw_lock_type_t rw_latch= height && latch_mode != BTR_MODIFY_TREE
+      ? upper_rw_latch
+      : RW_NO_LATCH;
     buf_block_t *block= buf_page_get_gen(page_id, zip_size, rw_latch, nullptr,
                                          BUF_GET, mtr, &err,
                                          !height && !index->is_clust());
-    ut_ad((block != nullptr) == (err == DB_SUCCESS));
+    ut_ad(!block == (err != DB_SUCCESS));
     tree_blocks[n_blocks]= block;
 
     if (!block)
@@ -2532,11 +2530,10 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
       /* We are in the root node */
       height= btr_page_get_level(page);
       if (height);
-      else if (rw_latch != RW_NO_LATCH && rw_latch != root_leaf_rw_latch)
+      else if (upper_rw_latch != root_leaf_rw_latch)
       {
         /* We should retry to get the page, because the root page
         is latched with different level as a leaf page. */
-        ut_ad(rw_latch == RW_S_LATCH);
         ut_ad(n_blocks == 0);
         ut_ad(root_leaf_rw_latch != RW_NO_LATCH);
         upper_rw_latch= root_leaf_rw_latch;
@@ -2559,7 +2556,9 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
             break;
           if (!latch_by_caller)
             /* Release the tree s-latch */
-            mtr_release_s_latch_at_savepoint(mtr, savepoint, &index->lock);
+            mtr->release_s_latch_at_savepoint(savepoint -
+                                              sizeof(mtr_memo_slot_t),
+                                              &index->lock);
 
           /* release upper blocks */
           for (; n_releases < n_blocks; n_releases++)
@@ -2628,7 +2627,7 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
       ut_ad(upper_rw_latch == RW_X_LATCH);
       /* we should U-latch root page, if released already.
       It contains seg_header. */
-      if (n_releases > 0)
+      if (n_releases)
         mtr_block_sx_latch_at_savepoint(mtr, tree_savepoints[0],
 					tree_blocks[0]);
 

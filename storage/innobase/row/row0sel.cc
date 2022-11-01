@@ -1434,9 +1434,8 @@ row_sel_open_pcur(
 						 plan->mode, BTR_SEARCH_LEAF,
 						 &plan->pcur, mtr);
 	} else {
-		err = btr_pcur_open_at_index_side(plan->asc, index,
-						  BTR_SEARCH_LEAF, &plan->pcur,
-						  false, 0, mtr);
+		err = plan->pcur.open_leaf(plan->asc, index, BTR_SEARCH_LEAF,
+					   mtr);
 	}
 
 	plan->pcur_is_open = err == DB_SUCCESS;
@@ -4833,9 +4832,8 @@ page_corrupted:
 			}
 		}
 	} else if (mode == PAGE_CUR_G || mode == PAGE_CUR_L) {
-		err = btr_pcur_open_at_index_side(
-			mode == PAGE_CUR_G, index, BTR_SEARCH_LEAF,
-			pcur, false, 0, &mtr);
+		err = pcur->open_leaf(mode == PAGE_CUR_G, index,
+				      BTR_SEARCH_LEAF, &mtr);
 
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
@@ -6211,9 +6209,7 @@ dberr_t row_check_index(row_prebuilt_t *prebuilt, ulint *n_rows)
   mtr.start();
 
   dict_index_t *clust_index= dict_table_get_first_index(prebuilt->table);
-
-  dberr_t err= btr_pcur_open_at_index_side(true, index, BTR_SEARCH_LEAF,
-                                           prebuilt->pcur, false, 0, &mtr);
+  dberr_t err= prebuilt->pcur->open_leaf(true, index, BTR_SEARCH_LEAF, &mtr);
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
   {
 func_exit:
@@ -6887,8 +6883,7 @@ row_search_get_max_rec(
 	btr_pcur_t	pcur;
 	const rec_t*	rec;
 	/* Open at the high/right end (false), and init cursor */
-	if (btr_pcur_open_at_index_side(false, index, BTR_SEARCH_LEAF, &pcur,
-					true, 0, mtr) != DB_SUCCESS) {
+	if (pcur.open_leaf(false, index, BTR_SEARCH_LEAF, mtr) != DB_SUCCESS) {
 		return nullptr;
 	}
 

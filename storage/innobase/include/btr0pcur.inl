@@ -372,44 +372,6 @@ dberr_t btr_pcur_open_with_no_init(dict_index_t *index, const dtuple_t *tuple,
                                      btr_pcur_get_btr_cur(cursor), mtr);
 }
 
-/*****************************************************************//**
-Opens a persistent cursor at either end of an index. */
-UNIV_INLINE
-dberr_t
-btr_pcur_open_at_index_side(
-/*========================*/
-	bool		from_left,	/*!< in: true if open to the low end,
-					false if to the high end */
-	dict_index_t*	index,		/*!< in: index */
-	btr_latch_mode	latch_mode,	/*!< in: latch mode */
-	btr_pcur_t*	pcur,		/*!< in/out: cursor */
-	bool		init_pcur,	/*!< in: whether to initialize pcur */
-	ulint		level,		/*!< in: level to search for
-					(0=leaf) */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
-{
-	dberr_t		err = DB_SUCCESS;
-
-	pcur->latch_mode = BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
-
-	pcur->search_mode = from_left ? PAGE_CUR_G : PAGE_CUR_L;
-
-	if (init_pcur) {
-		btr_pcur_init(pcur);
-	}
-
-	err = btr_cur_open_at_index_side(
-		from_left, index, latch_mode,
-		btr_pcur_get_btr_cur(pcur), level, mtr);
-	pcur->pos_state = BTR_PCUR_IS_POSITIONED;
-
-	pcur->old_stored = false;
-
-	pcur->trx_if_known = NULL;
-
-	return (err);
-}
-
 /**************************************************************//**
 Frees the possible memory heap of a persistent cursor and sets the latch
 mode of the persistent cursor to BTR_NO_LATCHES.
