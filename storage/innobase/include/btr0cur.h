@@ -282,7 +282,6 @@ btr_cur_update_alloc_zip_func(
 /*==========================*/
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	page_cur_t*	cursor,	/*!< in/out: B-tree page cursor */
-	dict_index_t*	index,	/*!< in: the index corresponding to cursor */
 #ifdef UNIV_DEBUG
 	rec_offs*	offsets,/*!< in/out: offsets of the cursor record */
 #endif /* UNIV_DEBUG */
@@ -292,11 +291,11 @@ btr_cur_update_alloc_zip_func(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #ifdef UNIV_DEBUG
-# define btr_cur_update_alloc_zip(page_zip,cursor,index,offsets,len,cr,mtr) \
-	btr_cur_update_alloc_zip_func(page_zip,cursor,index,offsets,len,cr,mtr)
+# define btr_cur_update_alloc_zip(page_zip,cursor,offsets,len,cr,mtr) \
+	btr_cur_update_alloc_zip_func(page_zip,cursor,offsets,len,cr,mtr)
 #else /* UNIV_DEBUG */
-# define btr_cur_update_alloc_zip(page_zip,cursor,index,offsets,len,cr,mtr) \
-	btr_cur_update_alloc_zip_func(page_zip,cursor,index,len,cr,mtr)
+# define btr_cur_update_alloc_zip(page_zip,cursor,offsets,len,cr,mtr) \
+	btr_cur_update_alloc_zip_func(page_zip,cursor,len,cr,mtr)
 #endif /* UNIV_DEBUG */
 
 /** Apply an update vector to a record. No field size changes are allowed.
@@ -819,25 +818,8 @@ struct btr_cur_t {
 	rtr_info_t*	rtr_info;	/*!< rtree search info */
 	btr_cur_t():thr(NULL), rtr_info(NULL) {}
 					/* default values */
-	/** Zero-initialize all fields */
-	void init()
-	{
-		memset(&page_cur, 0, sizeof page_cur);
-		purge_node = NULL;
-		left_block = NULL;
-		thr = NULL;
-		flag = btr_cur_method(0);
-		tree_height = 0;
-		up_match = 0;
-		up_bytes = 0;
-		low_match = 0;
-		low_bytes = 0;
-		n_fields = 0;
-		n_bytes = 0;
-		fold = 0;
-		path_arr = NULL;
-		rtr_info = NULL;
-	}
+  /** Zero-initialize all fields */
+  void init() { memset((void*) this, 0, sizeof *this); }
 
   dict_index_t *index() const { return page_cur.index; }
 

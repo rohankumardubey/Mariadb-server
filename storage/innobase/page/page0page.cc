@@ -458,6 +458,7 @@ page_copy_rec_list_end_no_locks(
 	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
+	cur1.index = cur2.index = index;
 	page_cur_position(rec, block, &cur1);
 
 	if (page_cur_is_before_first(&cur1) && !page_cur_move_to_next(&cur1)) {
@@ -483,8 +484,8 @@ page_copy_rec_list_end_no_locks(
 		rec_t*	ins_rec;
 		offsets = rec_get_offsets(cur1.rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
-		ins_rec = page_cur_insert_rec_low(&cur2, index,
-						  cur1.rec, offsets, mtr);
+		ins_rec = page_cur_insert_rec_low(&cur2, cur1.rec, offsets,
+						  mtr);
 		if (UNIV_UNLIKELY(!ins_rec || !page_cur_move_to_next(&cur1))) {
 			err = DB_CORRUPTION;
 			break;
@@ -733,6 +734,7 @@ corrupted:
 		log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 	}
 
+	cur2.index = index;
 	page_cur_position(ret, new_block, &cur2);
 
 	const ulint n_core = page_rec_is_leaf(rec) ? index->n_core_fields : 0;
@@ -763,9 +765,8 @@ corrupted:
 			offsets = rec_get_offsets(cur1.rec, index, offsets,
 						  n_core,
 						  ULINT_UNDEFINED, &heap);
-			cur2.rec = page_cur_insert_rec_low(&cur2, index,
-							   cur1.rec, offsets,
-							   mtr);
+			cur2.rec = page_cur_insert_rec_low(&cur2, cur1.rec,
+							   offsets, mtr);
 			if (UNIV_UNLIKELY(!cur2.rec
 					  || !page_cur_move_to_next(&cur1))) {
 				*err = DB_CORRUPTION;

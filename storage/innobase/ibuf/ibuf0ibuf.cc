@@ -3651,30 +3651,27 @@ dberr_t
 ibuf_insert_to_index_page_low(
 /*==========================*/
 	const dtuple_t*	entry,	/*!< in: buffered entry to insert */
-	buf_block_t*	block,	/*!< in/out: index page where the buffered
-				entry should be placed */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t*	heap,	/*!< in/out: memory heap */
 	mtr_t*		mtr,	/*!< in/out: mtr */
 	page_cur_t*	page_cur)/*!< in/out: cursor positioned on the record
 				after which to insert the buffered entry */
 {
-  if (page_cur_tuple_insert(page_cur, entry, index, offsets, &heap, 0, mtr))
+  if (page_cur_tuple_insert(page_cur, entry, offsets, &heap, 0, mtr))
     return DB_SUCCESS;
 
   /* Page reorganization or recompression should already have been
   attempted by page_cur_tuple_insert(). Besides, per
   ibuf_index_page_calc_free_zip() the page should not have been
   recompressed or reorganized. */
-  ut_ad(!is_buf_block_get_page_zip(block));
+  ut_ad(!is_buf_block_get_page_zip(page_cur->block));
 
   /* If the record did not fit, reorganize */
-  if (dberr_t err= btr_page_reorganize(page_cur, index, mtr))
+  if (dberr_t err= btr_page_reorganize(page_cur, mtr))
     return err;
 
   /* This time the record must fit */
-  if (page_cur_tuple_insert(page_cur, entry, index, offsets, &heap, 0, mtr))
+  if (page_cur_tuple_insert(page_cur, entry, offsets, &heap, 0, mtr))
     return DB_SUCCESS;
 
   return DB_CORRUPTION;
@@ -3731,6 +3728,7 @@ ibuf_insert_to_index_page(
 	}
 
 	ulint up_match = 0, low_match = 0;
+	page_cur.index = index;
 
 	if (page_cur_search_with_match(block, index, entry, PAGE_CUR_LE,
 				       &up_match, &low_match, &page_cur,
@@ -3779,7 +3777,7 @@ ibuf_insert_to_index_page(
 		if (!row_upd_changes_field_size_or_external(index, offsets,
 							    update)
 		    && (!page_zip || btr_cur_update_alloc_zip(
-				page_zip, &page_cur, index, offsets,
+				page_zip, &page_cur, offsets,
 				rec_offs_size(offsets), false, mtr))) {
 			/* This is the easy case. Do something similar
 			to btr_cur_update_in_place(). */
@@ -3829,8 +3827,8 @@ ibuf_insert_to_index_page(
 		offsets = NULL;
 	}
 
-	err = ibuf_insert_to_index_page_low(entry, block, index,
-					    &offsets, heap, mtr, &page_cur);
+	err = ibuf_insert_to_index_page_low(entry, &offsets, heap, mtr,
+                                            &page_cur);
 updated_in_place:
 	mem_heap_free(heap);
 

@@ -1360,12 +1360,12 @@ rec_t*
 page_cur_insert_rec_low(
 /*====================*/
 	const page_cur_t*cur,	/*!< in: page cursor */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: record to insert after cur */
 	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-  buf_block_t* block= cur->block;
+  buf_block_t *block= cur->block;
+  dict_index_t * const index= cur->index;
 
   ut_ad(rec_offs_validate(rec, index, offsets));
   ut_ad(rec_offs_n_fields(offsets) > 0);
@@ -1785,13 +1785,13 @@ page_cur_insert_rec_zip(
 /*====================*/
 	page_cur_t*	cursor,	/*!< in/out: page cursor,
 				logical position unchanged  */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
 	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
   page_zip_des_t * const page_zip= page_cur_get_page_zip(cursor);
   page_t * const page= cursor->block->page.frame;
+  dict_index_t * const index = cursor->index;
 
   ut_ad(page_zip);
   ut_ad(rec_offs_validate(rec, index, offsets));
@@ -1893,8 +1893,7 @@ page_cur_insert_rec_zip(
 
     /* Try compressing the whole page afterwards. */
     const mtr_log_t log_mode= mtr->set_log_mode(MTR_LOG_NONE);
-    rec_t *insert_rec= page_cur_insert_rec_low(cursor, index, rec, offsets,
-                                               mtr);
+    rec_t *insert_rec= page_cur_insert_rec_low(cursor, rec, offsets, mtr);
     mtr->set_log_mode(log_mode);
 
     if (insert_rec)

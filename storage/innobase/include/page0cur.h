@@ -129,7 +129,6 @@ page_cur_tuple_insert(
 /*==================*/
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const dtuple_t*	tuple,	/*!< in: pointer to a data tuple */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
@@ -143,7 +142,6 @@ rec_t*
 page_cur_insert_rec_low(
 /*====================*/
 	const page_cur_t*cur,	/*!< in: page cursor */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: record to insert after cur */
 	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
@@ -165,7 +163,6 @@ page_cur_insert_rec_zip(
 /*====================*/
 	page_cur_t*	cursor,	/*!< in/out: page cursor,
 				logical position unchanged  */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
 	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */

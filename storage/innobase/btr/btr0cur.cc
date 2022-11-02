@@ -3287,18 +3287,16 @@ btr_cur_insert_if_possible(
 	page_cursor = btr_cur_get_page_cur(cursor);
 
 	/* Now, try the insert */
-	rec = page_cur_tuple_insert(page_cursor, tuple, page_cursor->index,
-				    offsets, heap, n_ext, mtr);
+	rec = page_cur_tuple_insert(page_cursor, tuple, offsets, heap, n_ext,
+				    mtr);
 
 	/* If the record did not fit, reorganize.
 	For compressed pages, page_cur_tuple_insert()
 	attempted this already. */
 	if (!rec && !page_cur_get_page_zip(page_cursor)
-	    && btr_page_reorganize(page_cursor, page_cursor->index, mtr)
-	    == DB_SUCCESS) {
-		rec = page_cur_tuple_insert(
-			page_cursor, tuple, page_cursor->index,
-			offsets, heap, n_ext, mtr);
+	    && btr_page_reorganize(page_cursor, mtr) == DB_SUCCESS) {
+		rec = page_cur_tuple_insert(page_cursor, tuple, offsets, heap,
+					    n_ext, mtr);
 	}
 
 	ut_ad(!rec || rec_offs_validate(rec, page_cursor->index, *offsets));
@@ -3619,8 +3617,7 @@ fail_err:
 		 << ib::hex(thr ? thr->graph->trx->id : 0)
 		 << ' ' << rec_printer(entry).str());
 	DBUG_EXECUTE_IF("do_page_reorganize",
-			if (n_recs)
-			ut_a(btr_page_reorganize(page_cursor, index, mtr)
+			ut_a(!n_recs || btr_page_reorganize(page_cursor, mtr)
 			     == DB_SUCCESS););
 
 	/* Now, try the insert */
@@ -3663,9 +3660,8 @@ fail_err:
 		}
 #endif
 
-		*rec = page_cur_tuple_insert(
-			page_cursor, entry, index, offsets, heap,
-			n_ext, mtr);
+		*rec = page_cur_tuple_insert(page_cursor, entry, offsets, heap,
+					     n_ext, mtr);
 
 		reorg = page_cursor_rec != page_cur_get_rec(page_cursor);
 	}
@@ -3687,10 +3683,10 @@ fail_err:
 		reorg = true;
 
 		/* If the record did not fit, reorganize */
-		err = btr_page_reorganize(page_cursor, index, mtr);
+		err = btr_page_reorganize(page_cursor, mtr);
 		if (err != DB_SUCCESS
 		    || page_get_max_insert_size(page, 1) != max_size
-		    || !(*rec = page_cur_tuple_insert(page_cursor, entry, index,
+		    || !(*rec = page_cur_tuple_insert(page_cursor, entry,
 						      offsets, heap, n_ext,
 						      mtr))) {
 			err = DB_CORRUPTION;
@@ -4117,7 +4113,6 @@ btr_cur_update_alloc_zip_func(
 /*==========================*/
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	page_cur_t*	cursor,	/*!< in/out: B-tree page cursor */
-	dict_index_t*	index,	/*!< in: the index corresponding to cursor */
 #ifdef UNIV_DEBUG
 	rec_offs*	offsets,/*!< in/out: offsets of the cursor record */
 #endif /* UNIV_DEBUG */
@@ -4126,6 +4121,7 @@ btr_cur_update_alloc_zip_func(
 				false=update-in-place */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
+	dict_index_t*	index = cursor->index;
 
 	/* Have a local copy of the variables as these can change
 	dynamically. */
@@ -4152,7 +4148,7 @@ btr_cur_update_alloc_zip_func(
 		return(false);
 	}
 
-	if (btr_page_reorganize(cursor, index, mtr) == DB_SUCCESS) {
+	if (btr_page_reorganize(cursor, mtr) == DB_SUCCESS) {
 		rec_offs_make_valid(page_cur_get_rec(cursor), index,
 				    page_is_leaf(page), offsets);
 
@@ -4383,7 +4379,7 @@ btr_cur_update_in_place(
 
 		if (!btr_cur_update_alloc_zip(
 			    page_zip, btr_cur_get_page_cur(cursor),
-			    index, offsets, rec_offs_size(offsets),
+			    offsets, rec_offs_size(offsets),
 			    false, mtr)) {
 			return(DB_ZIP_OVERFLOW);
 		}
@@ -4764,7 +4760,7 @@ any_extern:
 		}
 
 		if (!btr_cur_update_alloc_zip(
-			    page_zip, page_cursor, index, *offsets,
+			    page_zip, page_cursor, *offsets,
 			    new_rec_size, true, mtr)) {
 			return(DB_ZIP_OVERFLOW);
 		}
@@ -4880,7 +4876,7 @@ any_extern:
 		was a rollback, the shortened metadata record
 		would have too many fields, and we would be unable to
 		know the size of the freed record. */
-		err = btr_page_reorganize(page_cursor, index, mtr);
+		err = btr_page_reorganize(page_cursor, mtr);
 		if (err != DB_SUCCESS) {
 			goto func_exit;
 		}
@@ -5243,7 +5239,7 @@ btr_cur_pessimistic_update(
 			was a rollback, the shortened metadata record
 			would have too many fields, and we would be unable to
 			know the size of the freed record. */
-			err = btr_page_reorganize(page_cursor, index, mtr);
+			err = btr_page_reorganize(page_cursor, mtr);
 			if (err != DB_SUCCESS) {
 				goto return_after_reservations;
 			}
@@ -5398,7 +5394,7 @@ btr_cur_pessimistic_update(
 		was a rollback, the shortened metadata record
 		would have too many fields, and we would be unable to
 		know the size of the freed record. */
-		err = btr_page_reorganize(page_cursor, index, mtr);
+		err = btr_page_reorganize(page_cursor, mtr);
 		if (err != DB_SUCCESS) {
 			goto return_after_reservations;
 		}
@@ -5699,7 +5695,7 @@ btr_cur_optimistic_delete(
 			would have too many fields, and we would be
 			unable to know the size of the freed record. */
 			err = btr_page_reorganize(btr_cur_get_page_cur(cursor),
-						  cursor->index(), mtr);
+						  mtr);
 			goto func_exit;
 		} else {
 			if (!flags) {
@@ -5915,7 +5911,7 @@ btr_cur_pessimistic_delete(
 			would carry too many fields, and we would be
 			unable to know the size of the freed record. */
 			*err = btr_page_reorganize(btr_cur_get_page_cur(cursor),
-						   index, mtr);
+						   mtr);
 			ut_ad(!ret);
 			goto err_exit;
 		}

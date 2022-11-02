@@ -268,7 +268,7 @@ rtr_update_mbr_field(
 			if (!btr_cur_update_alloc_zip(
 					page_zip,
 					btr_cur_get_page_cur(cursor),
-					index, offsets,
+					offsets,
 					rec_offs_size(offsets),
 					false, mtr)) {
 
@@ -424,7 +424,7 @@ update_mbr:
 		} else if (ins_suc) {
 			ut_ad(err == DB_FAIL);
 			err = btr_page_reorganize(btr_cur_get_page_cur(cursor),
-						  index, mtr);
+						  mtr);
 			if (err == DB_SUCCESS) {
 				err = btr_cur_optimistic_insert(
 					flags, cursor, &insert_offsets, &heap,
@@ -741,6 +741,7 @@ rtr_split_page_move_rec_list(
 
 	page_cur_set_before_first(block, &page_cursor);
 	page_cur_set_before_first(new_block, &new_page_cursor);
+	new_page_cursor.index = index;
 
 	page = buf_block_get_frame(block);
 	new_page = buf_block_get_frame(new_block);
@@ -775,7 +776,7 @@ rtr_split_page_move_rec_list(
 
 			rec = page_cur_insert_rec_low(
 				&new_page_cursor,
-				index, cur_split_node->key, offsets, mtr);
+				cur_split_node->key, offsets, mtr);
 
 			if (UNIV_UNLIKELY
 			    (!rec
@@ -1132,7 +1133,7 @@ corrupted:
 				goto after_insert; }
 	);
 
-	rec = page_cur_tuple_insert(page_cursor, tuple, cursor->index(),
+	rec = page_cur_tuple_insert(page_cursor, tuple,
 				    offsets, heap, n_ext, mtr);
 
 	/* If insert did not fit, try page reorganization.
@@ -1140,9 +1141,9 @@ corrupted:
 	attempted this already. */
 	if (rec == NULL) {
 		if (!is_page_cur_get_page_zip(page_cursor)
-		    && btr_page_reorganize(page_cursor, cursor->index(), mtr)) {
+		    && btr_page_reorganize(page_cursor, mtr)) {
 			rec = page_cur_tuple_insert(page_cursor, tuple,
-						    cursor->index(), offsets,
+						    offsets,
 						    heap, n_ext, mtr);
 
 		}
@@ -1337,6 +1338,7 @@ rtr_page_copy_rec_list_end_no_locks(
 		return DB_CORRUPTION;
 	}
 	page_cur_position(cur_rec, new_block, &page_cur);
+	page_cur.index = index;
 
 	/* Copy records from the original page to the new page */
 	while (!page_cur_is_after_last(&cur1)) {
@@ -1398,7 +1400,7 @@ move_to_prev:
 		offsets1 = rec_get_offsets(cur1_rec, index, offsets1, n_core,
 					   ULINT_UNDEFINED, &heap);
 
-		ins_rec = page_cur_insert_rec_low(&page_cur, index,
+		ins_rec = page_cur_insert_rec_low(&page_cur,
 						  cur1_rec, offsets1, mtr);
 		if (UNIV_UNLIKELY(!ins_rec || moved >= max_move)) {
 			return DB_CORRUPTION;
@@ -1460,6 +1462,7 @@ rtr_page_copy_rec_list_start_no_locks(
 		return DB_CORRUPTION;
 	}
 	page_cur_position(cur_rec, new_block, &page_cur);
+	page_cur.index = index;
 
 	while (page_cur_get_rec(&cur1) != rec) {
 		rec_t*	cur1_rec = page_cur_get_rec(&cur1);
@@ -1521,7 +1524,7 @@ move_to_prev:
 		offsets1 = rec_get_offsets(cur1_rec, index, offsets1, n_core,
 					   ULINT_UNDEFINED, &heap);
 
-		ins_rec = page_cur_insert_rec_low(&page_cur, index,
+		ins_rec = page_cur_insert_rec_low(&page_cur,
 						  cur1_rec, offsets1, mtr);
 		if (UNIV_UNLIKELY(!ins_rec || moved >= max_move)) {
 			return DB_CORRUPTION;

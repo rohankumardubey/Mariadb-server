@@ -1280,19 +1280,18 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
 
 /** Reorganize an index page.
 @param cursor      index page cursor
-@param index       the index that the cursor belongs to
 @param mtr         mini-transaction */
-static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
-                                       mtr_t *mtr)
+static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
 {
   buf_block_t *const block= cursor->block;
 
   ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
   ut_ad(!is_buf_block_get_page_zip(block));
   ut_ad(fil_page_index_page_check(block->page.frame));
-  ut_ad(index->is_dummy ||
-        block->page.id().space() == index->table->space->id);
-  ut_ad(index->is_dummy || block->page.id().page_no() != index->page ||
+  ut_ad(cursor->index->is_dummy ||
+        block->page.id().space() == cursor->index->table->space->id);
+  ut_ad(cursor->index->is_dummy ||
+        block->page.id().page_no() != cursor->index->page ||
         !page_has_siblings(block->page.frame));
 
   /* Save the cursor position. */
@@ -1310,8 +1309,8 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
 
   const mtr_log_t log_mode= mtr->set_log_mode(MTR_LOG_NO_REDO);
 
-  page_create(block, mtr, index->table->not_redundant());
-  if (index->is_spatial())
+  page_create(block, mtr, cursor->index->table->not_redundant());
+  if (cursor->index->is_spatial())
     block->page.frame[FIL_PAGE_TYPE + 1]= byte(FIL_PAGE_RTREE);
 
   static_assert(((FIL_PAGE_INDEX & 0xff00) | byte(FIL_PAGE_RTREE)) ==
@@ -1323,7 +1322,7 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
   dberr_t err=
     page_copy_rec_list_end_no_locks(block, old,
                                     page_get_infimum_rec(old->page.frame),
-                                    index, mtr);
+                                    cursor->index, mtr);
   mtr->set_log_mode(log_mode);
 
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
@@ -1337,17 +1336,18 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
   if (page_get_max_trx_id(block->page.frame))
     /* PAGE_MAX_TRX_ID must be zero on non-leaf pages other than
     clustered index root pages. */
-    ut_ad(dict_index_is_sec_or_ibuf(index)
+    ut_ad(dict_index_is_sec_or_ibuf(cursor->index)
           ? page_is_leaf(block->page.frame)
-          : block->page.id().page_no() == index->page);
+          : block->page.id().page_no() == cursor->index->page);
   else
     /* PAGE_MAX_TRX_ID is unused in clustered index pages (other than
     the root where it is repurposed as PAGE_ROOT_AUTO_INC), non-leaf
     pages, and in temporary tables.  It was always zero-initialized in
     page_create().  PAGE_MAX_TRX_ID must be nonzero on
     dict_index_is_sec_or_ibuf() leaf pages. */
-    ut_ad(index->table->is_temporary() || !page_is_leaf(block->page.frame) ||
-          !dict_index_is_sec_or_ibuf(index));
+    ut_ad(cursor->index->table->is_temporary() ||
+          !page_is_leaf(block->page.frame) ||
+          !dict_index_is_sec_or_ibuf(cursor->index));
 #endif
 
   const uint16_t data_size1= page_get_data_size(old->page.frame);
@@ -1371,10 +1371,10 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
   else if (!(cursor->rec= page_rec_get_nth(block->page.frame, pos)))
     return DB_CORRUPTION;
 
-  if (block->page.id().page_no() != index->page ||
+  if (block->page.id().page_no() != cursor->index->page ||
       fil_page_get_type(old->page.frame) != FIL_PAGE_TYPE_INSTANT)
     ut_ad(!memcmp(old->page.frame, block->page.frame, PAGE_HEADER));
-  else if (!index->is_instant())
+  else if (!cursor->index->is_instant())
   {
     ut_ad(!memcmp(old->page.frame, block->page.frame, FIL_PAGE_TYPE));
     ut_ad(!memcmp(old->page.frame + FIL_PAGE_TYPE + 2,
@@ -1390,7 +1390,7 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
                       FIL_PAGE_TYPE + old->page.frame, 2);
     memcpy_aligned<2>(PAGE_HEADER + PAGE_INSTANT + block->page.frame,
                       PAGE_HEADER + PAGE_INSTANT + old->page.frame, 2);
-    if (!index->table->instant);
+    if (!cursor->index->table->instant);
     else if (page_is_comp(block->page.frame))
     {
       memcpy(PAGE_NEW_INFIMUM + block->page.frame,
@@ -1413,9 +1413,9 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
                 block->page.frame + PAGE_MAX_TRX_ID + PAGE_HEADER,
                 PAGE_DATA - (PAGE_MAX_TRX_ID + PAGE_HEADER)));
 
-  if (!index->has_locking());
-  else if (index->page == FIL_NULL)
-    ut_ad(index->is_dummy);
+  if (!cursor->index->has_locking());
+  else if (cursor->index->page == FIL_NULL)
+    ut_ad(cursor->index->is_dummy);
   else
     lock_move_reorganize_page(block, old);
 
@@ -1570,7 +1570,8 @@ btr_page_reorganize_block(
     return page_zip_reorganize(block, index, z_level, mtr, true);
   page_cur_t cur;
   page_cur_set_before_first(block, &cur);
-  return btr_page_reorganize_low(&cur, index, mtr);
+  cur.index= index;
+  return btr_page_reorganize_low(&cur, mtr);
 }
 
 /*************************************************************//**
@@ -1582,24 +1583,21 @@ be done either within the same mini-transaction, or by invoking
 ibuf_reset_free_bits() before mtr_commit(). On uncompressed pages,
 IBUF_BITMAP_FREE is unaffected by reorganization.
 
+@param cursor  page cursor
+@param mtr     mini-transaction
 @return error code
 @retval DB_FAIL if reorganizing a ROW_FORMAT=COMPRESSED page failed */
-dberr_t
-btr_page_reorganize(
-/*================*/
-	page_cur_t*	cursor,	/*!< in/out: page cursor */
-	dict_index_t*	index,	/*!< in: the index tree of the page */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+dberr_t btr_page_reorganize(page_cur_t *cursor, mtr_t *mtr)
 {
   if (!buf_block_get_page_zip(cursor->block))
-    return btr_page_reorganize_low(cursor, index, mtr);
+    return btr_page_reorganize_low(cursor, mtr);
 
   ulint pos= page_rec_get_n_recs_before(cursor->rec);
   if (UNIV_UNLIKELY(pos == ULINT_UNDEFINED))
     return DB_CORRUPTION;
 
-  dberr_t err= page_zip_reorganize(cursor->block, index, page_zip_level, mtr,
-                                   true);
+  dberr_t err= page_zip_reorganize(cursor->block, cursor->index,
+                                   page_zip_level, mtr, true);
   if (err == DB_FAIL);
   else if (!pos)
     ut_ad(cursor->rec == page_get_infimum_rec(cursor->block->page.frame));
@@ -2003,7 +2001,7 @@ btr_root_raise_and_insert(
 	page_cur_set_before_first(root, page_cursor);
 
 	node_ptr_rec = page_cur_tuple_insert(page_cursor, node_ptr,
-					     index, offsets, heap, 0, mtr);
+					     offsets, heap, 0, mtr);
 
 	/* The root page should only contain the node pointer
 	to new_block at this point.  Thus, the data should fit. */
@@ -2677,9 +2675,8 @@ btr_insert_into_right_sibling(
 		lock_update_node_pointer(block, next_block);
 	}
 
-	rec = page_cur_tuple_insert(
-		&next_page_cursor, tuple, cursor->index(), offsets, &heap,
-		n_ext, mtr);
+	rec = page_cur_tuple_insert(&next_page_cursor, tuple, offsets, &heap,
+				    n_ext, mtr);
 
 	if (!rec) {
 		if (is_leaf
@@ -3200,7 +3197,7 @@ insert_empty:
 		return nullptr;
 	}
 
-	rec = page_cur_tuple_insert(page_cursor, tuple, cursor->index(),
+	rec = page_cur_tuple_insert(page_cursor, tuple,
 				    offsets, heap, n_ext, mtr);
 
 #ifdef UNIV_ZIP_DEBUG
@@ -3230,13 +3227,13 @@ insert_empty:
 		goto insert_failed;
 	}
 
-	*err = btr_page_reorganize(page_cursor, page_cursor->index, mtr);
+	*err = btr_page_reorganize(page_cursor, mtr);
 
 	if (*err != DB_SUCCESS) {
 		return nullptr;
 	}
 
-	rec = page_cur_tuple_insert(page_cursor, tuple, page_cursor->index,
+	rec = page_cur_tuple_insert(page_cursor, tuple,
 				    offsets, heap, n_ext, mtr);
 
 	if (rec == NULL) {
@@ -4136,11 +4133,11 @@ btr_discard_only_page_on_level(
 		if (rec) {
 			page_cur_t cur;
 			page_cur_set_before_first(block, &cur);
+			cur.index = index;
 			DBUG_ASSERT(index->table->instant);
 			DBUG_ASSERT(rec_is_alter_metadata(rec, *index));
 			btr_set_instant(block, *index, mtr);
-			rec = page_cur_insert_rec_low(&cur, index, rec,
-						      offsets, mtr);
+			rec = page_cur_insert_rec_low(&cur, rec, offsets, mtr);
 			ut_ad(rec);
 			mem_heap_free(heap);
 		} else if (index->is_instant()) {
