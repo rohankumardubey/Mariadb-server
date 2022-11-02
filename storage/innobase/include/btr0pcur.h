@@ -367,8 +367,6 @@ struct btr_pcur_t
   we say then that the cursor is detached; it can be restored to
   attached if the old position was stored in old_rec */
   btr_latch_mode latch_mode= BTR_NO_LATCHES;
-  /** true if old_rec is stored */
-  bool old_stored= false;
   /** if cursor position is stored, contains an initial segment of the
   latest record cursor was positioned either on, before or after */
   rec_t *old_rec= nullptr;
@@ -437,7 +435,7 @@ struct btr_pcur_t
     this->latch_mode= BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
     search_mode= first ? PAGE_CUR_G : PAGE_CUR_L;
     pos_state= BTR_PCUR_IS_POSITIONED;
-    old_stored= false;
+    old_rec= nullptr;
 
     return btr_cur.open_leaf(first, index,
                              BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode), mtr);
