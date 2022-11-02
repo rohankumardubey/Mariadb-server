@@ -1009,11 +1009,9 @@ row_sel_get_clust_rec(
 
 	*out_rec = NULL;
 
-	offsets = rec_get_offsets(rec,
-				  btr_pcur_get_btr_cur(&plan->pcur)->index,
-				  offsets,
-				  btr_pcur_get_btr_cur(&plan->pcur)->index
-				  ->n_core_fields, ULINT_UNDEFINED, &heap);
+	offsets = rec_get_offsets(rec, plan->pcur.index(), offsets,
+				  plan->pcur.index()->n_core_fields,
+				  ULINT_UNDEFINED, &heap);
 
 	row_build_row_ref_fast(plan->clust_ref, plan->clust_map, rec, offsets);
 
@@ -3672,7 +3670,7 @@ static bool sel_restore_position_for_mysql(bool *same_user_rec,
 next:
 			if (btr_pcur_move_to_next(pcur, mtr)
 			    && rec_is_metadata(btr_pcur_get_rec(pcur),
-					       *pcur->btr_cur.index)) {
+					       *pcur->index())) {
 				btr_pcur_move_to_next(pcur, mtr);
 			}
 
@@ -3688,7 +3686,7 @@ next:
 prev:
 		if (btr_pcur_is_on_user_rec(pcur) && !moves_up
 		    && !rec_is_metadata(btr_pcur_get_rec(pcur),
-					*pcur->btr_cur.index)) {
+					*pcur->index())) {
 			if (!btr_pcur_move_to_prev(pcur, mtr)) {
 				return true;
 			}

@@ -224,14 +224,14 @@ static bool row_undo_mod_must_purge(const undo_node_t &node)
   ut_ad(!node.table->is_temporary());
 
   const btr_cur_t &btr_cur= node.pcur.btr_cur;
-  ut_ad(btr_cur.index->is_primary());
+  ut_ad(btr_cur.index()->is_primary());
   DEBUG_SYNC_C("rollback_purge_clust");
 
   if (!purge_sys.is_purgeable(node.new_trx_id))
     return false;
 
   const rec_t *rec= btr_cur_get_rec(&btr_cur);
-  return trx_read_trx_id(rec + row_trx_id_offset(rec, btr_cur.index)) ==
+  return trx_read_trx_id(rec + row_trx_id_offset(rec, btr_cur.index())) ==
     node.new_trx_id;
 }
 

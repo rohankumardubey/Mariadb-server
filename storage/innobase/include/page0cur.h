@@ -293,7 +293,7 @@ page_cur_open_on_rnd_user_rec(
 /** Index page cursor */
 
 struct page_cur_t{
-	const dict_index_t*	index;
+	dict_index_t*	index;
 	rec_t*		rec;	/*!< pointer to a record on page */
 	rec_offs*	offsets;
 	buf_block_t*	block;	/*!< pointer to the block containing rec */

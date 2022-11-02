@@ -70,7 +70,7 @@ rtr_page_split_initialize_nodes(
 
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
-	n_uniq = dict_index_get_n_unique_in_tree(cursor->index);
+	n_uniq = dict_index_get_n_unique_in_tree(cursor->index());
 
 	n_recs = ulint(page_get_n_recs(page)) + 1;
 
@@ -88,8 +88,8 @@ rtr_page_split_initialize_nodes(
 
 	rec = page_rec_get_next(page_get_infimum_rec(page));
 	const ulint n_core = page_is_leaf(page)
-		? cursor->index->n_core_fields : 0;
-	*offsets = rec_get_offsets(rec, cursor->index, *offsets, n_core,
+		? cursor->index()->n_core_fields : 0;
+	*offsets = rec_get_offsets(rec, cursor->index(), *offsets, n_core,
 				   n_uniq, &heap);
 
 	source_cur = rec_get_nth_field(rec, *offsets, 0, &len);
@@ -101,7 +101,7 @@ rtr_page_split_initialize_nodes(
 		memcpy(cur->coords, source_cur, DATA_MBR_LEN);
 
 		rec = page_rec_get_next(rec);
-		*offsets = rec_get_offsets(rec, cursor->index, *offsets,
+		*offsets = rec_get_offsets(rec, cursor->index(), *offsets,
 					   n_core, n_uniq, &heap);
 		source_cur = rec_get_nth_field(rec, *offsets, 0, &len);
 	}
@@ -111,9 +111,9 @@ rtr_page_split_initialize_nodes(
 		dtuple_get_nth_field(tuple, 0)));
 	cur->coords = reserve_coords(buf_pos, SPDIMS);
 	rec = (byte*) mem_heap_alloc(
-		heap, rec_get_converted_size(cursor->index, tuple, 0));
+		heap, rec_get_converted_size(cursor->index(), tuple, 0));
 
-	rec = rec_convert_dtuple_to_rec(rec, cursor->index, tuple, 0);
+	rec = rec_convert_dtuple_to_rec(rec, cursor->index(), tuple, 0);
 	cur->key = rec;
 
 	memcpy(cur->coords, source_cur, DATA_MBR_LEN);
@@ -200,7 +200,7 @@ rtr_update_mbr_field(
 	rec_t*		new_rec,	/*!< in: rec to use */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	dict_index_t*	index = cursor->index;
+	dict_index_t*	index = cursor->index();
 	mem_heap_t*	heap;
 	page_t*		page;
 	rec_t*		rec;
@@ -556,7 +556,6 @@ rtr_adjust_upper_level(
 {
 	ulint		page_no;
 	ulint		new_page_no;
-	dict_index_t*	index = sea_cur->index;
 	btr_cur_t	cursor;
 	rec_offs*	offsets;
 	mem_heap_t*	heap;
@@ -573,6 +572,7 @@ rtr_adjust_upper_level(
 	cursor.init();
 
 	cursor.thr = sea_cur->thr;
+	cursor.page_cur.index = sea_cur->index();
 
 	/* Get the level of the split pages */
 	level = btr_page_get_level(buf_block_get_frame(block));
@@ -585,7 +585,7 @@ rtr_adjust_upper_level(
 	/* Set new mbr for the old page on the upper level. */
 	/* Look up the index for the node pointer to page */
 	offsets = rtr_page_get_father_block(
-		NULL, heap, index, block, mtr, sea_cur, &cursor);
+		NULL, heap, block, mtr, sea_cur, &cursor);
 
 	page_cursor = btr_cur_get_page_cur(&cursor);
 
@@ -607,10 +607,11 @@ rtr_adjust_upper_level(
 		    page_get_infimum_rec(new_block->page.frame))) {
 		/* Insert the node for the new page. */
 		node_ptr_upper = rtr_index_build_node_ptr(
-			index, new_mbr, first, new_page_no, heap);
+			sea_cur->index(), new_mbr, first, new_page_no, heap);
 		ulint	up_match = 0, low_match = 0;
 		err = page_cur_search_with_match(btr_cur_get_block(&cursor),
-						 index, node_ptr_upper,
+						 sea_cur->index(),
+						 node_ptr_upper,
 						 PAGE_CUR_LE,
 						 &up_match, &low_match,
 						 btr_cur_get_page_cur(&cursor),
@@ -660,7 +661,7 @@ rtr_adjust_upper_level(
 
 	mem_heap_free(heap);
 
-	ut_ad(block->zip_size() == index->table->space->zip_size());
+	ut_ad(block->zip_size() == sea_cur->index()->table->space->zip_size());
 
 	if (err != DB_SUCCESS) {
 		return err;
@@ -670,7 +671,7 @@ rtr_adjust_upper_level(
 
 	if (next_page_no == FIL_NULL) {
 	} else if (buf_block_t*	next_block =
-		   btr_block_get(*index, next_page_no, RW_X_LATCH,
+		   btr_block_get(*sea_cur->index(), next_page_no, RW_X_LATCH,
 				 false, mtr, &err)) {
 		if (UNIV_UNLIKELY(memcmp_aligned<4>(next_block->page.frame
 						    + FIL_PAGE_PREV,
@@ -906,12 +907,10 @@ func_start:
 	mem_heap_empty(*heap);
 	*offsets = NULL;
 
-	ut_ad(mtr->memo_contains_flagged(&cursor->index->lock, MTR_MEMO_X_LOCK
-					 | MTR_MEMO_SX_LOCK));
-	ut_ad(!dict_index_is_online_ddl(cursor->index)
-	      || (flags & BTR_CREATE_FLAG)
-	      || dict_index_is_clust(cursor->index));
-	ut_ad(cursor->index->lock.have_u_or_x());
+	ut_ad(mtr->memo_contains_flagged(&cursor->index()->lock,
+					 MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
+	ut_ad(!dict_index_is_online_ddl(cursor->index()));
+	ut_ad(cursor->index()->lock.have_u_or_x());
 
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
@@ -954,7 +953,7 @@ corrupted:
 	}
 #endif
 
-	insert_size = rec_get_converted_size(cursor->index, tuple, n_ext);
+	insert_size = rec_get_converted_size(cursor->index(), tuple, n_ext);
 	total_data = page_get_data_size(page) + insert_size;
 	first_rec_group = split_rtree_node(rtr_split_node_array,
 					   static_cast<int>(n_recs),
@@ -965,7 +964,7 @@ corrupted:
 
 	/* Allocate a new page to the index */
 	const uint16_t page_level = btr_page_get_level(page);
-	new_block = btr_page_alloc(cursor->index, page_id.page_no() + 1,
+	new_block = btr_page_alloc(cursor->index(), page_id.page_no() + 1,
 				   FSP_UP, page_level, mtr, mtr, err);
 	if (UNIV_UNLIKELY(!new_block)) {
 		return nullptr;
@@ -977,7 +976,7 @@ corrupted:
 		to contain FIL_NULL in FIL_PAGE_PREV at this stage. */
 		memset_aligned<4>(new_block->page.frame + FIL_PAGE_PREV, 0, 4);
 	}
-	btr_page_create(new_block, new_page_zip, cursor->index,
+	btr_page_create(new_block, new_page_zip, cursor->index(),
 			page_level, mtr);
 
 	new_page = buf_block_get_frame(new_block);
@@ -985,7 +984,7 @@ corrupted:
 
 	/* Set new ssn to the new page and page. */
 	page_set_ssn_id(new_block, new_page_zip, current_ssn, mtr);
-	next_ssn = rtr_get_new_ssn_id(cursor->index);
+	next_ssn = rtr_get_new_ssn_id(cursor->index());
 
 	page_set_ssn_id(block, page_zip, next_ssn, mtr);
 
@@ -998,7 +997,7 @@ corrupted:
 	    || (*err = rtr_split_page_move_rec_list(rtr_split_node_array,
 						    first_rec_group,
 						    new_block, block,
-						    first_rec, cursor->index,
+						    first_rec, cursor->index(),
 						    *heap, mtr))) {
 		if (*err != DB_FAIL) {
 			return nullptr;
@@ -1021,7 +1020,7 @@ corrupted:
 		ut_a(new_page_zip);
 
 		page_zip_copy_recs(new_block,
-				   page_zip, page, cursor->index, mtr);
+				   page_zip, page, cursor->index(), mtr);
 
 		page_cursor = btr_cur_get_page_cur(cursor);
 
@@ -1056,7 +1055,7 @@ corrupted:
 		lock_rtr_move_rec_list(new_block, block, rec_move, moved);
 
 		const ulint n_core = page_level
-			? 0 : cursor->index->n_core_fields;
+			? 0 : cursor->index()->n_core_fields;
 
 		/* Delete recs in first group from the new page. */
 		for (cur_split_node = rtr_split_node_array;
@@ -1076,11 +1075,11 @@ corrupted:
 
 				*offsets = rec_get_offsets(
 					page_cur_get_rec(page_cursor),
-					cursor->index, *offsets, n_core,
+					cursor->index(), *offsets, n_core,
 					ULINT_UNDEFINED, heap);
 
 				page_cur_delete_rec(page_cursor,
-					cursor->index, *offsets, mtr);
+					cursor->index(), *offsets, mtr);
 				n++;
 			}
 		}
@@ -1093,16 +1092,16 @@ corrupted:
 						  block, page_cursor);
 				*offsets = rec_get_offsets(
 					page_cur_get_rec(page_cursor),
-					cursor->index, *offsets, n_core,
+					cursor->index(), *offsets, n_core,
 					ULINT_UNDEFINED, heap);
 				page_cur_delete_rec(page_cursor,
-					cursor->index, *offsets, mtr);
+					cursor->index(), *offsets, mtr);
 			}
 		}
 
 #ifdef UNIV_GIS_DEBUG
-		ut_ad(page_validate(new_page, cursor->index));
-		ut_ad(page_validate(page, cursor->index));
+		ut_ad(page_validate(new_page, cursor->index()));
+		ut_ad(page_validate(page, cursor->index()));
 #endif
 	}
 
@@ -1118,7 +1117,7 @@ corrupted:
 	page_cursor = btr_cur_get_page_cur(cursor);
 	ulint up_match = 0, low_match = 0;
 
-	if (page_cur_search_with_match(insert_block, cursor->index, tuple,
+	if (page_cur_search_with_match(insert_block, cursor->index(), tuple,
 				       PAGE_CUR_LE, &up_match, &low_match,
 				       page_cursor, nullptr)) {
 		goto corrupted;
@@ -1133,7 +1132,7 @@ corrupted:
 				goto after_insert; }
 	);
 
-	rec = page_cur_tuple_insert(page_cursor, tuple, cursor->index,
+	rec = page_cur_tuple_insert(page_cursor, tuple, cursor->index(),
 				    offsets, heap, n_ext, mtr);
 
 	/* If insert did not fit, try page reorganization.
@@ -1141,9 +1140,9 @@ corrupted:
 	attempted this already. */
 	if (rec == NULL) {
 		if (!is_page_cur_get_page_zip(page_cursor)
-		    && btr_page_reorganize(page_cursor, cursor->index, mtr)) {
+		    && btr_page_reorganize(page_cursor, cursor->index(), mtr)) {
 			rec = page_cur_tuple_insert(page_cursor, tuple,
-						    cursor->index, offsets,
+						    cursor->index(), offsets,
 						    heap, n_ext, mtr);
 
 		}
@@ -1156,8 +1155,8 @@ after_insert:
 #endif
 	/* Calculate the mbr on the upper half-page, and the mbr on
 	original page. */
-	rtr_page_cal_mbr(cursor->index, block, &mbr, *heap);
-	rtr_page_cal_mbr(cursor->index, new_block, &new_mbr, *heap);
+	rtr_page_cal_mbr(cursor->index(), block, &mbr, *heap);
+	rtr_page_cal_mbr(cursor->index(), new_block, &new_mbr, *heap);
 	prdt.data = &mbr;
 	new_prdt.data = &new_mbr;
 
@@ -1175,7 +1174,8 @@ after_insert:
 	/* Save the new ssn to the root page, since we need to reinit
 	the first ssn value from it after restart server. */
 
-	root_block = btr_root_block_get(cursor->index, RW_SX_LATCH, mtr, err);
+	root_block = btr_root_block_get(cursor->index(), RW_SX_LATCH,
+					mtr, err);
 	if (UNIV_UNLIKELY(!root_block)) {
 		return nullptr;
 	}
@@ -1187,8 +1187,8 @@ after_insert:
 	 again. */
 	if (!rec) {
 		/* We play safe and reset the free bits for new_page */
-		if (!dict_index_is_clust(cursor->index)
-		    && !cursor->index->table->is_temporary()) {
+		if (!dict_index_is_clust(cursor->index())
+		    && !cursor->index()->table->is_temporary()) {
 			ibuf_reset_free_bits(new_block);
 			ibuf_reset_free_bits(block);
 		}
@@ -1205,16 +1205,16 @@ after_insert:
 		if (UNIV_UNLIKELY(!i_rec)) {
 			goto corrupted;
 		}
-		btr_cur_position(cursor->index, i_rec, block, cursor);
+		btr_cur_position(cursor->index(), i_rec, block, cursor);
 
 		goto func_start;
 	}
 
 #ifdef UNIV_GIS_DEBUG
-	ut_ad(page_validate(buf_block_get_frame(block), cursor->index));
-	ut_ad(page_validate(buf_block_get_frame(new_block), cursor->index));
+	ut_ad(page_validate(buf_block_get_frame(block), cursor->index()));
+	ut_ad(page_validate(buf_block_get_frame(new_block), cursor->index()));
 
-	ut_ad(!rec || rec_offs_validate(rec, cursor->index, *offsets));
+	ut_ad(!rec || rec_offs_validate(rec, cursor->index(), *offsets));
 #endif
 	MONITOR_INC(MONITOR_INDEX_SPLIT);
 
@@ -1234,14 +1234,13 @@ rtr_ins_enlarge_mbr(
 	rtr_mbr_t		new_mbr;
 	buf_block_t*		block;
 	mem_heap_t*		heap;
-	dict_index_t*		index = btr_cur->index;
 	page_cur_t*		page_cursor;
 	rec_offs*		offsets;
 	node_visit_t*		node_visit;
 	btr_cur_t		cursor;
 	page_t*			page;
 
-	ut_ad(dict_index_is_spatial(index));
+	ut_ad(btr_cur->index()->is_spatial());
 
 	/* If no rtr_info or rtree is one level tree, return. */
 	if (!btr_cur->rtr_info || btr_cur->tree_height == 1) {
@@ -1269,20 +1268,20 @@ rtr_ins_enlarge_mbr(
 		}
 
 		/* Calculate the mbr of the child page. */
-		rtr_page_cal_mbr(index, block, &new_mbr, heap);
+		rtr_page_cal_mbr(page_cursor->index, block, &new_mbr, heap);
 
 		/* Get father block. */
 		cursor.init();
+		cursor.page_cur.index = page_cursor->index;
 		offsets = rtr_page_get_father_block(
-			NULL, heap, index, block, mtr, btr_cur, &cursor);
+			NULL, heap, block, mtr, btr_cur, &cursor);
 
 		page = buf_block_get_frame(block);
 
 		/* Update the mbr field of the rec. */
 		rtr_update_mbr_field(&cursor, offsets, NULL, page,
 				     &new_mbr, NULL, mtr);
-		page_cursor = btr_cur_get_page_cur(&cursor);
-		block = page_cur_get_block(page_cursor);
+		block = btr_cur_get_block(&cursor);
 	}
 
 	mem_heap_free(heap);
@@ -1560,7 +1559,7 @@ rtr_merge_mbr_changed(
 	ulint		len;
 	bool		changed = false;
 
-	ut_ad(dict_index_is_spatial(cursor->index));
+	ut_ad(cursor->index()->is_spatial());
 
 	rec = btr_cur_get_rec(cursor);
 

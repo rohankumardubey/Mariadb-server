@@ -95,7 +95,7 @@ rtr_pcur_getnext_from_path(
 				/*!< in: index tree locked */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	dict_index_t*	index = btr_cur->index;
+	dict_index_t*	index = btr_cur->index();
 	bool		found = false;
 	page_cur_t*	page_cursor;
 	ulint		level = 0;
@@ -606,7 +606,6 @@ rtr_pcur_open(
 }
 
 /* Get the rtree page father.
-@param[in]	index		rtree index
 @param[in]	block		child page in the index
 @param[in,out]	mtr		mtr
 @param[in]	sea_cur		search cursor, contains information
@@ -614,16 +613,11 @@ rtr_pcur_open(
 @param[out]	cursor		cursor on node pointer record,
 				its page x-latched
 @return whether the cursor was successfully positioned */
-bool
-rtr_page_get_father(
-	dict_index_t*	index,
-	buf_block_t*	block,
-	mtr_t*		mtr,
-	btr_cur_t*	sea_cur,
-	btr_cur_t*	cursor)
+bool rtr_page_get_father(buf_block_t *block, mtr_t *mtr, btr_cur_t *sea_cur,
+                         btr_cur_t *cursor)
 {
   mem_heap_t *heap = mem_heap_create(100);
-  rec_offs *offsets= rtr_page_get_father_block(nullptr, heap, index, block,
+  rec_offs *offsets= rtr_page_get_father_block(nullptr, heap, block,
                                                mtr, sea_cur, cursor);
   mem_heap_free(heap);
   return offsets != nullptr;
@@ -792,7 +786,6 @@ rtr_page_get_father_block(
 /*======================*/
 	rec_offs*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	dict_index_t*	index,	/*!< in: b-tree index */
 	buf_block_t*	block,	/*!< in: child page in the index */
 	mtr_t*		mtr,	/*!< in: mtr */
 	btr_cur_t*	sea_cur,/*!< in: search cursor, contains information
@@ -805,7 +798,7 @@ rtr_page_get_father_block(
 	if (!rec) {
 		return nullptr;
 	}
-	btr_cur_position(index, rec, block, cursor);
+	page_cur_position(rec, block, btr_cur_get_page_cur(cursor));
 
 	return(rtr_page_get_father_node_ptr(offsets, heap, sea_cur,
 					    cursor, mtr));
@@ -826,7 +819,7 @@ rtr_create_rtr_info(
 {
 	rtr_info_t*	rtr_info;
 
-	index = index ? index : cursor->index;
+	index = index ? index : cursor->index();
 	ut_ad(index);
 
 	rtr_info = static_cast<rtr_info_t*>(ut_zalloc_nokey(sizeof(*rtr_info)));
@@ -1411,7 +1404,7 @@ rtr_non_leaf_insert_stack_push(
 
 	page_cur_position(rec, block, btr_pcur_get_page_cur(my_cursor));
 
-	(btr_pcur_get_btr_cur(my_cursor))->index = index;
+	btr_pcur_get_page_cur(my_cursor)->index = index;
 
 	new_seq = rtr_get_current_ssn_id(index);
 	rtr_non_leaf_stack_push(path, block->page.id().page_no(),

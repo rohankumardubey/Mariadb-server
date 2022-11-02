@@ -46,13 +46,6 @@ of a scroll cursor easier */
 };
 
 /**************************************************************//**
-Allocates memory for a persistent cursor object and initializes the cursor.
-@return own: persistent cursor */
-btr_pcur_t*
-btr_pcur_create_for_mysql(void);
-/*============================*/
-
-/**************************************************************//**
 Resets a persistent cursor object, freeing ::old_rec_buf if it is
 allocated and resetting the other members to their initial values. */
 void
@@ -60,12 +53,6 @@ btr_pcur_reset(
 /*===========*/
 	btr_pcur_t*	cursor);/*!< in, out: persistent cursor */
 
-/**************************************************************//**
-Frees the memory for a persistent cursor object. */
-void
-btr_pcur_free_for_mysql(
-/*====================*/
-	btr_pcur_t*	cursor);	/*!< in, own: persistent cursor */
 /**************************************************************//**
 Copies the stored position of a pcur to another pcur. */
 void
@@ -82,13 +69,6 @@ void
 btr_pcur_init(
 /*==========*/
 	btr_pcur_t*	pcur);	/*!< in: persistent cursor */
-
-/** Free old_rec_buf.
-@param[in]	pcur	Persistent cursor holding old_rec to be freed. */
-UNIV_INLINE
-void
-btr_pcur_free(
-	btr_pcur_t*	pcur);
 
 /**************************************************************//**
 Initializes and opens a persistent cursor to an index tree. */
@@ -370,7 +350,7 @@ struct btr_pcur_t
   /** if cursor position is stored, contains an initial segment of the
   latest record cursor was positioned either on, before or after */
   rec_t *old_rec= nullptr;
-  /** btr_cur.index->n_core_fields when old_rec was copied */
+  /** btr_cur.index()->n_core_fields when old_rec was copied */
   uint16 old_n_core_fields= 0;
   /** number of fields in old_rec */
   uint16 old_n_fields= 0;
@@ -396,7 +376,7 @@ struct btr_pcur_t
   btr_pcur_t() : btr_cur() { btr_cur.init(); }
 
   /** Return the index of this persistent cursor */
-  dict_index_t *index() const { return(btr_cur.index); }
+  dict_index_t *index() const { return(btr_cur.index()); }
   MY_ATTRIBUTE((nonnull, warn_unused_result))
   /** Restores the stored position of a persistent cursor bufferfixing
   the page and obtaining the specified latches. If the cursor position

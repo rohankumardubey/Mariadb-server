@@ -30,25 +30,6 @@ Created 2/23/1996 Heikki Tuuri
 #include "trx0trx.h"
 
 /**************************************************************//**
-Allocates memory for a persistent cursor object and initializes the cursor.
-@return own: persistent cursor */
-btr_pcur_t*
-btr_pcur_create_for_mysql(void)
-/*============================*/
-{
-	btr_pcur_t*	pcur;
-	DBUG_ENTER("btr_pcur_create_for_mysql");
-
-	pcur = (btr_pcur_t*) ut_malloc_nokey(sizeof(btr_pcur_t));
-
-	pcur->btr_cur.index = NULL;
-	btr_pcur_init(pcur);
-
-	DBUG_PRINT("btr_pcur_create_for_mysql", ("pcur: %p", pcur));
-	DBUG_RETURN(pcur);
-}
-
-/**************************************************************//**
 Resets a persistent cursor object, freeing ::old_rec_buf if it is
 allocated and resetting the other members to their initial values. */
 void
@@ -56,31 +37,15 @@ btr_pcur_reset(
 /*===========*/
 	btr_pcur_t*	cursor)	/*!< in, out: persistent cursor */
 {
-	btr_pcur_free(cursor);
+	ut_free(cursor->old_rec_buf);
+	memset(&cursor->btr_cur.page_cur, 0, sizeof(page_cur_t));
 	cursor->old_rec_buf = NULL;
-	cursor->btr_cur.index = NULL;
-	cursor->btr_cur.page_cur.rec = NULL;
 	cursor->old_rec = NULL;
 	cursor->old_n_core_fields = 0;
 	cursor->old_n_fields = 0;
 
 	cursor->latch_mode = BTR_NO_LATCHES;
 	cursor->pos_state = BTR_PCUR_NOT_POSITIONED;
-}
-
-/**************************************************************//**
-Frees the memory for a persistent cursor object. */
-void
-btr_pcur_free_for_mysql(
-/*====================*/
-	btr_pcur_t*	cursor)	/*!< in, own: persistent cursor */
-{
-	DBUG_ENTER("btr_pcur_free_for_mysql");
-	DBUG_PRINT("btr_pcur_free_for_mysql", ("pcur: %p", cursor));
-
-	btr_pcur_free(cursor);
-	ut_free(cursor);
-	DBUG_VOID_RETURN;
 }
 
 /**************************************************************//**
@@ -512,7 +477,7 @@ btr_pcur_move_to_next_page(
 
 	dberr_t err;
 	buf_block_t* next_block = btr_block_get(
-		*btr_pcur_get_btr_cur(cursor)->index, next_page_no, mode,
+		*cursor->index(), next_page_no, mode,
 		page_is_leaf(page), mtr, &err);
 
 	if (UNIV_UNLIKELY(!next_block)) {

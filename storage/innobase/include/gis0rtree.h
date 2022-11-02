@@ -257,7 +257,6 @@ rtr_get_mbr_from_tuple(
 
 /* Get the rtree page father.
 @param[in]	offsets		work area for the return value
-@param[in]	index		rtree index
 @param[in]	block		child page in the index
 @param[in,out]	mtr		mtr
 @param[in]	sea_cur		search cursor, contains information
@@ -265,14 +264,9 @@ rtr_get_mbr_from_tuple(
 @param[out]	cursor		cursor on node pointer record,
 				its page x-latched
 @return whether the cursor was successfully positioned */
-bool
-rtr_page_get_father(
-	dict_index_t*	index,
-	buf_block_t*	block,
-	mtr_t*		mtr,
-	btr_cur_t*	sea_cur,
-	btr_cur_t*	cursor)
-	MY_ATTRIBUTE((nonnull(1,2,3,5), warn_unused_result));
+bool rtr_page_get_father(buf_block_t *block, mtr_t *mtr, btr_cur_t *sea_cur,
+                         btr_cur_t *cursor)
+  MY_ATTRIBUTE((nonnull(1,2,4), warn_unused_result));
 
 /************************************************************//**
 Returns the father block to a page. It is assumed that mtr holds
@@ -283,7 +277,6 @@ rtr_page_get_father_block(
 /*======================*/
 	rec_offs*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	dict_index_t*	index,	/*!< in: b-tree index */
 	buf_block_t*	block,	/*!< in: child page in the index */
 	mtr_t*		mtr,	/*!< in: mtr */
 	btr_cur_t*	sea_cur,/*!< in: search cursor, contains information

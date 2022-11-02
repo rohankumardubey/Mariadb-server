@@ -96,7 +96,7 @@ btr_cur_get_page(
 Returns the index of a cursor.
 @param cursor b-tree cursor
 @return index */
-#define btr_cur_get_index(cursor) ((cursor)->index)
+#define btr_cur_get_index(cursor) ((cursor)->index())
 /*********************************************************//**
 Positions a tree cursor at a given record. */
 UNIV_INLINE
@@ -753,7 +753,6 @@ enum btr_cur_method {
 /** The tree cursor: the definition appears here only for the compiler
 to know struct size! */
 struct btr_cur_t {
-	dict_index_t*	index;		/*!< index where positioned */
 	page_cur_t	page_cur;	/*!< page cursor */
 	purge_node_t*	purge_node;	/*!< purge node, for BTR_DELETE */
 	buf_block_t*	left_block;	/*!< this field is used to store
@@ -823,7 +822,6 @@ struct btr_cur_t {
 	/** Zero-initialize all fields */
 	void init()
 	{
-		index = NULL;
 		memset(&page_cur, 0, sizeof page_cur);
 		purge_node = NULL;
 		left_block = NULL;
@@ -840,6 +838,8 @@ struct btr_cur_t {
 		path_arr = NULL;
 		rtr_info = NULL;
 	}
+
+  dict_index_t *index() const { return page_cur.index; }
 
   /** Open the cursor on the first or last record.
   @param first         true=first record, false=last record

@@ -153,7 +153,7 @@ public:
 			mtr.start();
 			m_index->set_modified(mtr);
 
-			ins_cur.index = m_index;
+			ins_cur.page_cur.index = m_index;
 			rtr_init_rtr_info(&rtr_info, false, &ins_cur, m_index,
 					  false);
 			rtr_info_update_btr(&ins_cur, &rtr_info);

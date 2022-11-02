@@ -68,7 +68,7 @@ row_undo_ins_remove_clust_rec(
 	dberr_t		err;
 	ulint		n_tries	= 0;
 	mtr_t		mtr;
-	dict_index_t*	index	= node->pcur.btr_cur.index;
+	dict_index_t*	index	= node->pcur.index();
 	table_id_t table_id = 0;
 	const bool dict_locked = node->trx->dict_operation_lock_mode;
 restart:

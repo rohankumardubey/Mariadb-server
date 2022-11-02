@@ -1658,7 +1658,7 @@ row_log_table_apply_delete_low(
 	dberr_t		error;
 	row_ext_t*	ext;
 	dtuple_t*	row;
-	dict_index_t*	index	= btr_pcur_get_btr_cur(pcur)->index;
+	dict_index_t*	index	= pcur->index();
 
 	ut_ad(dict_index_is_clust(index));
 

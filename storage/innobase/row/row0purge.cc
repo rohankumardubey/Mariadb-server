@@ -1344,7 +1344,7 @@ purge_node_t::validate_pcur()
 		return(true);
 	}
 
-	dict_index_t*	clust_index = pcur.btr_cur.index;
+	dict_index_t* clust_index = pcur.index();
 
 	rec_offs* offsets = rec_get_offsets(
 		pcur.old_rec, clust_index, NULL, pcur.old_n_core_fields,
