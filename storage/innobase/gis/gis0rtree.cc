@@ -245,6 +245,7 @@ rtr_update_mbr_field(
 	/* We need to remember the child page no of cursor2, since page could be
 	reorganized or insert a new rec before it. */
 	if (cursor2) {
+		ut_ad(cursor2->index() == index);
 		rec_t*	del_rec = btr_cur_get_rec(cursor2);
 		offsets2 = rec_get_offsets(btr_cur_get_rec(cursor2),
 					   index, NULL, 0,
@@ -321,7 +322,7 @@ rtr_update_mbr_field(
 							offsets2));
 
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor2),
-					    index, offsets2, mtr);
+					    offsets2, mtr);
 		}
 	} else if (page_get_n_recs(page) == 1) {
 		/* When there's only one rec in the page, we do insert/delete to
@@ -352,9 +353,10 @@ rtr_update_mbr_field(
 		ut_ad(old_rec != insert_rec);
 
 		page_cur_position(old_rec, block, &page_cur);
+		page_cur.index = index;
 		offsets2 = rec_get_offsets(old_rec, index, NULL, n_core,
 					   ULINT_UNDEFINED, &heap);
-		page_cur_delete_rec(&page_cur, index, offsets2, mtr);
+		page_cur_delete_rec(&page_cur, offsets2, mtr);
 
 	} else {
 update_mbr:
@@ -366,8 +368,7 @@ update_mbr:
 
 		/* Delete the rec which cursor point to. */
 		next_rec = page_rec_get_next(rec);
-		page_cur_delete_rec(btr_cur_get_page_cur(cursor),
-				    index, offsets, mtr);
+		page_cur_delete_rec(&cursor->page_cur, offsets, mtr);
 		if (!ins_suc) {
 			ut_ad(rec_info & REC_INFO_MIN_REC_FLAG);
 
@@ -400,13 +401,12 @@ update_mbr:
 			      == btr_node_ptr_get_child_page_no(cur2_rec,
 								offsets2));
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor2),
-					    index, offsets2, mtr);
+					    offsets2, mtr);
 			cursor2 = NULL;
 		}
 
 		/* Insert the new rec. */
-		if (page_cur_search_with_match(block, index, node_ptr,
-					       PAGE_CUR_LE,
+		if (page_cur_search_with_match(node_ptr, PAGE_CUR_LE,
 					       &up_match, &low_match,
 					       btr_cur_get_page_cur(cursor),
 					       NULL)) {
@@ -505,7 +505,7 @@ update_mbr:
 			ut_ad(cur2_pno == del_page_no && cur2_rec != insert_rec);
 
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor2),
-					    index, offsets2, mtr);
+					    offsets2, mtr);
 		}
 
 		if (!ins_suc) {
@@ -609,9 +609,7 @@ rtr_adjust_upper_level(
 		node_ptr_upper = rtr_index_build_node_ptr(
 			sea_cur->index(), new_mbr, first, new_page_no, heap);
 		ulint	up_match = 0, low_match = 0;
-		err = page_cur_search_with_match(btr_cur_get_block(&cursor),
-						 sea_cur->index(),
-						 node_ptr_upper,
+		err = page_cur_search_with_match(node_ptr_upper,
 						 PAGE_CUR_LE,
 						 &up_match, &low_match,
 						 btr_cur_get_page_cur(&cursor),
@@ -741,7 +739,7 @@ rtr_split_page_move_rec_list(
 
 	page_cur_set_before_first(block, &page_cursor);
 	page_cur_set_before_first(new_block, &new_page_cursor);
-	new_page_cursor.index = index;
+	page_cursor.index = new_page_cursor.index = index;
 
 	page = buf_block_get_frame(block);
 	new_page = buf_block_get_frame(new_block);
@@ -843,8 +841,7 @@ rtr_split_page_move_rec_list(
 				page_cur_get_rec(&page_cursor), index,
 				offsets, n_core, ULINT_UNDEFINED,
 				&heap);
-			page_cur_delete_rec(&page_cursor,
-				index, offsets, mtr);
+			page_cur_delete_rec(&page_cursor, offsets, mtr);
 		}
 	}
 
@@ -879,7 +876,6 @@ rtr_page_split_and_insert(
 	buf_block_t*		new_block;
 	page_zip_des_t*		page_zip;
 	page_zip_des_t*		new_page_zip;
-	buf_block_t*		insert_block;
 	page_cur_t*		page_cursor;
 	rec_t*			rec = 0;
 	ulint			n_recs;
@@ -1080,7 +1076,7 @@ corrupted:
 					ULINT_UNDEFINED, heap);
 
 				page_cur_delete_rec(page_cursor,
-					cursor->index(), *offsets, mtr);
+						    *offsets, mtr);
 				n++;
 			}
 		}
@@ -1093,10 +1089,10 @@ corrupted:
 						  block, page_cursor);
 				*offsets = rec_get_offsets(
 					page_cur_get_rec(page_cursor),
-					cursor->index(), *offsets, n_core,
+					page_cursor->index, *offsets, n_core,
 					ULINT_UNDEFINED, heap);
-				page_cur_delete_rec(page_cursor,
-					cursor->index(), *offsets, mtr);
+				page_cur_delete_rec(page_cursor, *offsets,
+						    mtr);
 			}
 		}
 
@@ -1108,17 +1104,15 @@ corrupted:
 
 	/* Insert the new rec to the proper page. */
 	cur_split_node = end_split_node - 1;
-	if (cur_split_node->n_node != first_rec_group) {
-		insert_block = new_block;
-	} else {
-		insert_block = block;
-	}
 
 	/* Reposition the cursor for insert and try insertion */
 	page_cursor = btr_cur_get_page_cur(cursor);
+	page_cursor->block = cur_split_node->n_node != first_rec_group
+		? new_block : block;
+
 	ulint up_match = 0, low_match = 0;
 
-	if (page_cur_search_with_match(insert_block, cursor->index(), tuple,
+	if (page_cur_search_with_match(tuple,
 				       PAGE_CUR_LE, &up_match, &low_match,
 				       page_cursor, nullptr)) {
 		goto corrupted;
@@ -1147,8 +1141,7 @@ corrupted:
 						    heap, n_ext, mtr);
 
 		}
-		/* If insert fail, we will try to split the insert_block
-		again. */
+		/* If insert fail, we will try to split the block again. */
 	}
 
 #ifdef UNIV_DEBUG

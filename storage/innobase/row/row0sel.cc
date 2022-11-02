@@ -3448,9 +3448,10 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 				rec, sec_index, true,
 				sec_index->n_fields, heap);
 			page_cur_t     page_cursor;
+			page_cursor.block = block;
+			page_cursor.index = sec_index;
 			ulint up_match = 0, low_match = 0;
-			ut_ad(!page_cur_search_with_match(block, sec_index,
-							  tuple, PAGE_CUR_LE,
+			ut_ad(!page_cur_search_with_match(tuple, PAGE_CUR_LE,
 							  &up_match,
 							  &low_match,
 							  &page_cursor,

@@ -1475,6 +1475,7 @@ x_latch_index:
 		latch_mode);
 
 	page_cursor = btr_cur_get_page_cur(cursor);
+	page_cursor->index = index;
 
 	const ulint		zip_size = index->table->space->zip_size();
 
@@ -1850,6 +1851,8 @@ retry_page_get:
 		}
         }
 
+	page_cursor->block = block;
+
 	if (dict_index_is_spatial(index) && page_mode >= PAGE_CUR_CONTAIN) {
 		ut_ad(need_path);
 		found = rtr_cur_search_with_match(
@@ -1886,7 +1889,7 @@ retry_page_get:
 		We only need the byte prefix comparison for the purpose
 		of updating the adaptive hash index. */
 		if (page_cur_search_with_match_bytes(
-			block, index, tuple, page_mode, &up_match, &up_bytes,
+			tuple, page_mode, &up_match, &up_bytes,
 			&low_match, &low_bytes, page_cursor)) {
 			err = DB_CORRUPTION;
 			goto func_exit;
@@ -1896,7 +1899,7 @@ retry_page_get:
 		/* Search for complete index fields. */
 		up_bytes = low_bytes = 0;
 		if (page_cur_search_with_match(
-			block, index, tuple, page_mode, &up_match,
+			tuple, page_mode, &up_match,
 			&low_match, page_cursor,
 			need_path ? cursor->rtr_info : nullptr)) {
 			err = DB_CORRUPTION;
@@ -2217,8 +2220,9 @@ need_opposite_intention:
 					? cursor->rtr_info : NULL;
 
 				for (ulint i = 0; i < n_blocks; i++) {
+					page_cursor->block = tree_blocks[i];
 					if (page_cur_search_with_match(
-						tree_blocks[i], index, tuple,
+						tuple,
 						page_mode, &up_match,
 						&low_match, page_cursor,
 						rtr_info)) {
@@ -3152,7 +3156,8 @@ btr_cur_open_at_rnd_pos(
 			}
 		}
 
-		page_cur_open_on_rnd_user_rec(block, page_cursor);
+		page_cursor->block = block;
+		page_cur_open_on_rnd_user_rec(page_cursor);
 
 		if (height == 0) {
 
@@ -4855,7 +4860,7 @@ any_extern:
 		btr_search_update_hash_on_delete(cursor);
 	}
 
-	page_cur_delete_rec(page_cursor, index, *offsets, mtr);
+	page_cur_delete_rec(page_cursor, *offsets, mtr);
 
 	if (!page_cur_move_to_prev(page_cursor)) {
 		return DB_CORRUPTION;
@@ -5221,7 +5226,7 @@ btr_cur_pessimistic_update(
 #endif /* UNIV_ZIP_DEBUG */
 	page_cursor = btr_cur_get_page_cur(cursor);
 
-	page_cur_delete_rec(page_cursor, index, *offsets, mtr);
+	page_cur_delete_rec(page_cursor, *offsets, mtr);
 
 	if (!page_cur_move_to_prev(page_cursor)) {
 		err = DB_CORRUPTION;
@@ -5689,7 +5694,7 @@ btr_cur_optimistic_delete(
 			ut_ad(cursor->index()->is_primary());
 			ut_ad(!page_zip);
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
-					    cursor->index(), offsets, mtr);
+					    offsets, mtr);
 			/* We must empty the PAGE_FREE list, because
 			after rollback, this deleted metadata record
 			would have too many fields, and we would be
@@ -5711,7 +5716,7 @@ btr_cur_optimistic_delete(
 					       cursor->index()));
 #endif /* UNIV_ZIP_DEBUG */
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
-					    cursor->index(), offsets, mtr);
+					    offsets, mtr);
 #ifdef UNIV_ZIP_DEBUG
 			ut_a(page_zip_validate(page_zip, page,
 					       cursor->index()));
@@ -5728,7 +5733,7 @@ btr_cur_optimistic_delete(
 					page, 1);
 
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
-					    cursor->index(), offsets, mtr);
+					    offsets, mtr);
 
 			/* The change buffer does not handle inserts
 			into non-leaf pages, into clustered indexes,
@@ -5905,7 +5910,7 @@ btr_cur_pessimistic_delete(
 			btr_search_update_hash_on_delete(cursor);
 		} else {
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
-					    index, offsets, mtr);
+					    offsets, mtr);
 			/* We must empty the PAGE_FREE list, because
 			after rollback, this deleted metadata record
 			would carry too many fields, and we would be
@@ -6009,7 +6014,7 @@ got_err:
 				index, page, BTR_INTENTION_DELETE, rec,
 				btr_node_ptr_max_size(index),
 				block->zip_size(), mtr);
-		page_cur_delete_rec(btr_cur_get_page_cur(cursor), index,
+		page_cur_delete_rec(btr_cur_get_page_cur(cursor),
 				    offsets, mtr);
 
 		if (min_mark_next_rec) {
@@ -6199,7 +6204,8 @@ public:
     if (dtuple_get_n_fields(&m_tuple) > 0)
     {
       m_up_bytes= m_low_bytes= 0;
-      if (page_cur_search_with_match(m_block, index(), &m_tuple, m_page_mode,
+      m_page_cur.block= m_block;
+      if (page_cur_search_with_match(&m_tuple, m_page_mode,
                                      &m_up_match, &m_low_match, &m_page_cur,
                                      nullptr))
         return false;

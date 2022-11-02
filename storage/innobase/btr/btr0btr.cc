@@ -2014,13 +2014,15 @@ btr_root_raise_and_insert(
 		ibuf_reset_free_bits(new_block);
 	}
 
+	page_cursor->block = new_block;
+	page_cursor->index = index;
+
 	if (tuple) {
 		ut_ad(dtuple_check_typed(tuple));
 		/* Reposition the cursor to the child node */
 		ulint low_match = 0, up_match = 0;
 
-		if (page_cur_search_with_match(new_block, index, tuple,
-					       PAGE_CUR_LE,
+		if (page_cur_search_with_match(tuple, PAGE_CUR_LE,
 					       &up_match, &low_match,
 					       page_cursor, nullptr)) {
 			if (err) {
@@ -2029,8 +2031,7 @@ btr_root_raise_and_insert(
 			return nullptr;
 		}
 	} else {
-		/* Set cursor to first record on child node */
-		page_cur_set_before_first(new_block, page_cursor);
+		page_cursor->rec = page_get_infimum_rec(new_block->page.frame);
 	}
 
 	/* Split the child and insert tuple */
@@ -2661,8 +2662,9 @@ btr_insert_into_right_sibling(
 	ulint up_match = 0, low_match = 0;
 
 	next_page_cursor.index = cursor->index();
+	next_page_cursor.block = next_block;
 
-	if (page_cur_search_with_match(next_block, cursor->index(), tuple,
+	if (page_cur_search_with_match(tuple,
 				       PAGE_CUR_LE, &up_match, &low_match,
 				       &next_page_cursor, nullptr)) {
 		return nullptr;
@@ -3187,10 +3189,11 @@ insert_empty:
 
 	/* 7. Reposition the cursor for insert and try insertion */
 	page_cursor = btr_cur_get_page_cur(cursor);
+	page_cursor->block = insert_block;
 
 	ulint up_match = 0, low_match = 0;
 
-	if (page_cur_search_with_match(insert_block, page_cursor->index, tuple,
+	if (page_cur_search_with_match(tuple,
 				       PAGE_CUR_LE, &up_match, &low_match,
 				       page_cursor, nullptr)) {
 		*err = DB_CORRUPTION;

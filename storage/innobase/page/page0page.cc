@@ -932,13 +932,14 @@ page_delete_rec_list_end(
     {
       page_cur_t cur;
       page_cur_position(rec, block, &cur);
+      cur.index= index;
       offsets= rec_get_offsets(rec, index, offsets, n_core,
 			       ULINT_UNDEFINED, &heap);
       rec= const_cast<rec_t*>(page_rec_get_next_low(rec, true));
 #ifdef UNIV_ZIP_DEBUG
       ut_a(page_zip_validate(&block->page.zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
-      page_cur_delete_rec(&cur, index, offsets, mtr);
+      page_cur_delete_rec(&cur, offsets, mtr);
     }
     while (page_offset(rec) != PAGE_NEW_SUPREMUM);
 
@@ -1135,6 +1136,7 @@ page_delete_rec_list_start(
 		return;
 	}
 
+	cur1.index = index;
 	page_cur_set_before_first(block, &cur1);
 	if (UNIV_UNLIKELY(!page_cur_move_to_next(&cur1))) {
 		ut_ad("corrupted page" == 0);
@@ -1148,7 +1150,7 @@ page_delete_rec_list_start(
 		offsets = rec_get_offsets(page_cur_get_rec(&cur1), index,
 					  offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
-		page_cur_delete_rec(&cur1, index, offsets, mtr);
+		page_cur_delete_rec(&cur1, offsets, mtr);
 	}
 
 	if (UNIV_LIKELY_NULL(heap)) {

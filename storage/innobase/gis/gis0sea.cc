@@ -298,6 +298,7 @@ rtr_pcur_getnext_from_path(
 
 		page_cursor = btr_cur_get_page_cur(btr_cur);
 		page_cursor->rec = NULL;
+		page_cursor->block = block;
 
 		if (mode == PAGE_CUR_RTREE_LOCATE) {
 			if (target_level == 0 && level == 0) {
@@ -306,7 +307,7 @@ rtr_pcur_getnext_from_path(
 				found = false;
 
 				if (!page_cur_search_with_match(
-					block, index, tuple, PAGE_CUR_LE,
+					tuple, PAGE_CUR_LE,
 					&up_match, &low_match,
 					btr_cur_get_page_cur(btr_cur), nullptr)
 				    && low_match
@@ -1156,6 +1157,7 @@ rtr_cur_restore_position(
 	ut_ad(mtr->is_active());
 
 	index = btr_cur_get_index(btr_cur);
+	ut_ad(r_cursor->index() == btr_cur->index());
 
 	if (r_cursor->rel_pos == BTR_PCUR_AFTER_LAST_IN_TREE
 	    || r_cursor->rel_pos == BTR_PCUR_BEFORE_FIRST_IN_TREE) {
@@ -1215,7 +1217,6 @@ rtr_cur_restore_position(
 
 	/* Page has changed, for R-Tree, the page cannot be shrunk away,
 	so we search the page and its right siblings */
-	buf_block_t*	block;
 	node_seq_t	page_ssn;
 	const page_t*	page;
 	page_cur_t*	page_cursor;
@@ -1235,21 +1236,21 @@ rtr_cur_restore_position(
 search_again:
 	ulint up_match = 0, low_match = 0;
 
-	block = buf_page_get_gen(
+	page_cursor->block = buf_page_get_gen(
 		page_id_t(index->table->space_id, page_no),
 		zip_size, RW_X_LATCH, NULL, BUF_GET, mtr);
 
-	if (!block) {
+	if (!page_cursor->block) {
 corrupted:
 		ret = false;
 		goto func_exit;
 	}
 
 	/* Get the page SSN */
-	page = buf_block_get_frame(block);
+	page = buf_block_get_frame(page_cursor->block);
 	page_ssn = page_get_ssn_id(page);
 
-	if (page_cur_search_with_match(block, index, tuple, PAGE_CUR_LE,
+	if (page_cur_search_with_match(tuple, PAGE_CUR_LE,
 				       &up_match, &low_match, page_cursor,
 				       nullptr)) {
 		goto corrupted;

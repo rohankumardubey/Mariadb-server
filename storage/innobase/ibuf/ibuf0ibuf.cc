@@ -3729,8 +3729,9 @@ ibuf_insert_to_index_page(
 
 	ulint up_match = 0, low_match = 0;
 	page_cur.index = index;
+	page_cur.block = block;
 
-	if (page_cur_search_with_match(block, index, entry, PAGE_CUR_LE,
+	if (page_cur_search_with_match(entry, PAGE_CUR_LE,
 				       &up_match, &low_match, &page_cur,
 				       nullptr)) {
 		return DB_CORRUPTION;
@@ -3818,7 +3819,7 @@ ibuf_insert_to_index_page(
 		/* Delete the different-length record, and insert the
 		buffered one. */
 
-		page_cur_delete_rec(&page_cur, index, offsets, mtr);
+		page_cur_delete_rec(&page_cur, offsets, mtr);
 		if (!(page_cur_move_to_prev(&page_cur))) {
 			err = DB_CORRUPTION;
 			goto updated_in_place;
@@ -3844,16 +3845,18 @@ ibuf_set_del_mark(
 /*==============*/
 	const dtuple_t*		entry,	/*!< in: entry */
 	buf_block_t*		block,	/*!< in/out: block */
-	const dict_index_t*	index,	/*!< in: record descriptor */
+	dict_index_t*		index,	/*!< in: record descriptor */
 	mtr_t*			mtr)	/*!< in: mtr */
 {
 	page_cur_t	page_cur;
+	page_cur.block = block;
+	page_cur.index = index;
 	ulint		up_match = 0, low_match = 0;
 
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
 
-	if (!page_cur_search_with_match(block, index, entry, PAGE_CUR_LE,
+	if (!page_cur_search_with_match(entry, PAGE_CUR_LE,
 					&up_match, &low_match, &page_cur,
 					nullptr)
 	    && low_match == dtuple_get_n_fields(entry)) {
@@ -3905,6 +3908,8 @@ ibuf_delete(
 				before latching any further pages */
 {
 	page_cur_t	page_cur;
+	page_cur.block = block;
+	page_cur.index = index;
 	ulint		up_match = 0, low_match = 0;
 
 	ut_ad(ibuf_inside(mtr));
@@ -3912,7 +3917,7 @@ ibuf_delete(
 	ut_ad(!index->is_spatial());
 	ut_ad(!index->is_clust());
 
-	if (!page_cur_search_with_match(block, index, entry, PAGE_CUR_LE,
+	if (!page_cur_search_with_match(entry, PAGE_CUR_LE,
 					&up_match, &low_match, &page_cur,
 					nullptr)
 	    && low_match == dtuple_get_n_fields(entry)) {
@@ -3965,7 +3970,7 @@ ibuf_delete(
 #ifdef UNIV_ZIP_DEBUG
 		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
-		page_cur_delete_rec(&page_cur, index, offsets, mtr);
+		page_cur_delete_rec(&page_cur, offsets, mtr);
 #ifdef UNIV_ZIP_DEBUG
 		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
