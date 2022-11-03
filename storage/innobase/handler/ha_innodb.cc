@@ -1548,7 +1548,8 @@ static void innodb_drop_database(handlerton*, char *path)
     std::vector<pfs_os_file_t> to_close;
     mtr_t mtr;
     mtr.start();
-    err= btr_pcur_open_on_user_rec(sys_index, &tuple, PAGE_CUR_GE,
+    pcur.btr_cur.page_cur.index = sys_index;
+    err= btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
                                    BTR_SEARCH_LEAF, &pcur, &mtr);
     if (err != DB_SUCCESS)
       goto err_exit;

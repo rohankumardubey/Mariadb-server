@@ -159,7 +159,7 @@ public:
 			rtr_info_update_btr(&ins_cur, &rtr_info);
 
 			error = btr_cur_search_to_nth_level(
-				m_index, 0, dtuple, PAGE_CUR_RTREE_INSERT,
+				0, dtuple, PAGE_CUR_RTREE_INSERT,
 				BTR_MODIFY_LEAF, &ins_cur, &mtr);
 
 			/* It need to update MBR in parent entry,
@@ -173,7 +173,7 @@ public:
 				mtr_start(&mtr);
 				m_index->set_modified(mtr);
 				error = btr_cur_search_to_nth_level(
-					m_index, 0, dtuple,
+					0, dtuple,
 					PAGE_CUR_RTREE_INSERT,
 					BTR_MODIFY_TREE, &ins_cur, &mtr);
 			}
@@ -198,7 +198,7 @@ public:
 
 				rtr_info_update_btr(&ins_cur, &rtr_info);
 				error = btr_cur_search_to_nth_level(
-					m_index, 0, dtuple,
+					0, dtuple,
 					PAGE_CUR_RTREE_INSERT,
 					BTR_MODIFY_TREE,
 					&ins_cur, &mtr);

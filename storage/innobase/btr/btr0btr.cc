@@ -748,7 +748,7 @@ btr_page_get_father_node_ptr_func(
 	const rec_t* user_rec = btr_cur_get_rec(cursor);
 	ut_a(page_rec_is_user_rec(user_rec));
 
-	if (btr_cur_search_to_nth_level(index, level + 1,
+	if (btr_cur_search_to_nth_level(level + 1,
 					dict_index_build_node_ptr(index,
 								  user_rec, 0,
 								  heap, level),
@@ -2382,8 +2382,9 @@ btr_insert_on_non_leaf_level(
 
 	flags |= BTR_NO_LOCKING_FLAG | BTR_KEEP_SYS_FLAG
 		| BTR_NO_UNDO_LOG_FLAG;
+	cursor.page_cur.index = index;
 
-	dberr_t err = btr_cur_search_to_nth_level(index, level, tuple, mode,
+	dberr_t err = btr_cur_search_to_nth_level(level, tuple, mode,
 						  BTR_CONT_MODIFY_TREE,
 						  &cursor, mtr);
 	ut_ad(cursor.flag == BTR_CUR_BINARY);

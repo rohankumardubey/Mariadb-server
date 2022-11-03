@@ -265,6 +265,7 @@ row_undo_ins_remove_sec_low(
 	mtr_t			mtr;
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
+	pcur.btr_cur.page_cur.index = index;
 	row_mtr_start(&mtr, index, !modify_leaf);
 
 	if (modify_leaf) {
@@ -284,7 +285,7 @@ row_undo_ins_remove_sec_low(
 		btr_pcur_get_btr_cur(&pcur)->thr = thr;
 	}
 
-	switch (row_search_index_entry(index, entry, mode, &pcur, &mtr)) {
+	switch (row_search_index_entry(entry, mode, &pcur, &mtr)) {
 	case ROW_BUFFERED:
 	case ROW_NOT_DELETED_REF:
 		/* These are invalid outcomes, because the mode passed

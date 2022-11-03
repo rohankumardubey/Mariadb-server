@@ -534,6 +534,7 @@ rtr_pcur_open(
 	/* Search with the tree cursor */
 
 	btr_cur_t* btr_cursor = btr_pcur_get_btr_cur(cursor);
+	btr_cursor->page_cur.index = index;
 
 	btr_cursor->rtr_info = rtr_create_rtr_info(false, false,
 						   btr_cursor, index);
@@ -549,7 +550,7 @@ rtr_pcur_open(
 		mtr->lock_upgrade(index->lock);
 	}
 
-	if (btr_cur_search_to_nth_level(index, 0, tuple, PAGE_CUR_RTREE_LOCATE,
+	if (btr_cur_search_to_nth_level(0, tuple, PAGE_CUR_RTREE_LOCATE,
                                         latch_mode,
 					btr_cursor, mtr) != DB_SUCCESS) {
 		return true;
@@ -623,7 +624,6 @@ MY_ATTRIBUTE((warn_unused_result))
 Returns the upper level node pointer to a R-Tree page. It is assumed
 that mtr holds an x-latch on the tree. */
 static const rec_t* rtr_get_father_node(
-	dict_index_t*	index,	/*!< in: index */
 	ulint		level,	/*!< in: the tree level of search */
 	const dtuple_t*	tuple,	/*!< in: data tuple; NOTE: n_fields_cmp in
 				tuple must be set so that it cannot get
@@ -636,6 +636,7 @@ static const rec_t* rtr_get_father_node(
 {
 	const rec_t* rec = nullptr;
 	auto had_rtr = btr_cur->rtr_info;
+	dict_index_t* const index = btr_cur->index();
 
 	/* Try to optimally locate the parent node. Level should always
 	less than sea_cur->tree_height unless the root is splitting */
@@ -669,7 +670,7 @@ static const rec_t* rtr_get_father_node(
 
 	btr_cur->rtr_info = rtr_create_rtr_info(false, false, btr_cur, index);
 
-	if (btr_cur_search_to_nth_level(index, level, tuple,
+	if (btr_cur_search_to_nth_level(level, tuple,
 					PAGE_CUR_RTREE_LOCATE,
 					BTR_CONT_MODIFY_TREE, btr_cur, mtr)
 	    != DB_SUCCESS) {
@@ -753,7 +754,7 @@ rtr_page_get_father_node_ptr(
 		sea_cur = NULL;
 	}
 
-	const rec_t* node_ptr = rtr_get_father_node(index, level + 1, tuple,
+	const rec_t* node_ptr = rtr_get_father_node(level + 1, tuple,
 						    sea_cur, cursor,
 						    page_no, mtr);
 	if (!node_ptr) {

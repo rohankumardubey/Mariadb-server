@@ -1017,7 +1017,8 @@ row_sel_get_clust_rec(
 
 	index = dict_table_get_first_index(plan->table);
 	plan->clust_pcur.old_rec = nullptr;
-	dberr_t err = btr_pcur_open_with_no_init(index, plan->clust_ref,
+	plan->clust_pcur.btr_cur.page_cur.index = index;
+	dberr_t err = btr_pcur_open_with_no_init(plan->clust_ref,
 						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
 						 &plan->clust_pcur, mtr);
 	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
@@ -1410,6 +1411,7 @@ row_sel_open_pcur(
 	}
 
 	plan->pcur.old_rec = nullptr;
+	plan->pcur.btr_cur.page_cur.index = index;
 
 	dberr_t err;
 
@@ -1430,7 +1432,7 @@ row_sel_open_pcur(
 					 que_node_get_val(exp));
 		}
 
-		err = btr_pcur_open_with_no_init(index, plan->tuple,
+		err = btr_pcur_open_with_no_init(plan->tuple,
 						 plan->mode, BTR_SEARCH_LEAF,
 						 &plan->pcur, mtr);
 	} else {
@@ -3381,9 +3383,9 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 				   sec_index, *offsets);
 
 	clust_index = dict_table_get_first_index(sec_index->table);
+	prebuilt->clust_pcur->btr_cur.page_cur.index = clust_index;
 
-	dberr_t err = btr_pcur_open_with_no_init(clust_index,
-						 prebuilt->clust_ref,
+	dberr_t err = btr_pcur_open_with_no_init(prebuilt->clust_ref,
 						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
 						 prebuilt->clust_pcur, mtr);
 	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
@@ -3969,7 +3971,7 @@ row_sel_try_search_shortcut_for_mysql(
 	ut_ad(trx->read_view.is_open());
 	pcur->old_rec = nullptr;
 
-	if (btr_pcur_open_with_no_init(index, search_tuple, PAGE_CUR_GE,
+	if (btr_pcur_open_with_no_init(search_tuple, PAGE_CUR_GE,
 				       BTR_SEARCH_LEAF, pcur, mtr)
 	    != DB_SUCCESS) {
 		return SEL_RETRY;
@@ -4399,6 +4401,8 @@ row_search_mvcc(
 		DBUG_RETURN(DB_CORRUPTION);
 	}
 
+	pcur->btr_cur.page_cur.index = index;
+
 	/* We need to get the virtual column values stored in secondary
 	index key, if this is covered index scan or virtual key read is
 	requested. */
@@ -4790,7 +4794,7 @@ wait_table_again:
 			}
 		}
 
-		err = btr_pcur_open_with_no_init(index, search_tuple, mode,
+		err = btr_pcur_open_with_no_init(search_tuple, mode,
 						 BTR_SEARCH_LEAF, pcur, &mtr);
 
 		if (err != DB_SUCCESS) {
@@ -6211,6 +6215,7 @@ dberr_t row_check_index(row_prebuilt_t *prebuilt, ulint *n_rows)
   mtr.start();
 
   dict_index_t *clust_index= dict_table_get_first_index(prebuilt->table);
+  prebuilt->clust_pcur->btr_cur.page_cur.index = clust_index;
   dberr_t err= prebuilt->pcur->open_leaf(true, index, BTR_SEARCH_LEAF, &mtr);
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
   {
@@ -6387,7 +6392,7 @@ rec_loop:
       const auto savepoint= mtr.get_savepoint();
 
       row_build_row_ref_in_tuple(prebuilt->clust_ref, rec, index, offsets);
-      err= btr_pcur_open_with_no_init(clust_index, prebuilt->clust_ref,
+      err= btr_pcur_open_with_no_init(prebuilt->clust_ref,
                                       PAGE_CUR_LE, BTR_SEARCH_LEAF,
                                       prebuilt->clust_pcur, &mtr);
       if (err != DB_SUCCESS)

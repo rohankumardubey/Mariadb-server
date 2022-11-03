@@ -1213,7 +1213,6 @@ If mode is PAGE_CUR_LE , cursor is left at the place where an insert of the
 search tuple should be performed in the B-tree. InnoDB does an insert
 immediately after the cursor. Thus, the cursor may end up on a user record,
 or on a page infimum record.
-@param index      index
 @param level      the tree level of search
 @param tuple      data tuple; NOTE: n_fields_cmp in tuple must be set so that
                   it cannot get compared to the node ptr page number field!
@@ -1232,7 +1231,7 @@ or on a page infimum record.
 @param autoinc    PAGE_ROOT_AUTO_INC to be written (0 if none)
 @return DB_SUCCESS on success or error code otherwise */
 TRANSACTIONAL_TARGET
-dberr_t btr_cur_search_to_nth_level(dict_index_t *index, ulint level,
+dberr_t btr_cur_search_to_nth_level(ulint level,
                                     const dtuple_t *tuple,
                                     page_cur_mode_t mode,
                                     btr_latch_mode latch_mode,
@@ -1272,6 +1271,7 @@ dberr_t btr_cur_search_to_nth_level(dict_index_t *index, ulint level,
 	bool		rtree_parent_modified = false;
 	bool		mbr_adj = false;
 	bool		found = false;
+	dict_index_t * const index = cursor->index();
 
 	DBUG_ENTER("btr_cur_search_to_nth_level");
 
@@ -1359,7 +1359,6 @@ dberr_t btr_cur_search_to_nth_level(dict_index_t *index, ulint level,
 	ut_ad(autoinc == 0 || level == 0);
 
 	cursor->flag = BTR_CUR_BINARY;
-	cursor->page_cur.index = index;
 
 #ifndef BTR_CUR_ADAPT
 	guess = NULL;

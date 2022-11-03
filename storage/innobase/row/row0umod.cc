@@ -495,6 +495,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 
 	row_mtr_start(&mtr, index, !modify_leaf);
 
+	pcur.btr_cur.page_cur.index = index;
 	btr_cur = btr_pcur_get_btr_cur(&pcur);
 
 	if (index->is_spatial()) {
@@ -522,8 +523,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 		ut_ad(!dict_index_is_online_ddl(index));
 	}
 
-	search_result = row_search_index_entry(index, entry, mode,
-					       &pcur, &mtr);
+	search_result = row_search_index_entry(entry, mode, &pcur, &mtr);
 
 	switch (UNIV_EXPECT(search_result, ROW_FOUND)) {
 	case ROW_NOT_FOUND:
@@ -668,6 +668,7 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 	row_search_result	search_result;
 	const auto		orig_mode = mode;
 
+	pcur.btr_cur.page_cur.index = index;
 	ut_ad(trx->id != 0);
 
 	if (dict_index_is_spatial(index)) {
@@ -685,8 +686,7 @@ try_again:
 
 	btr_cur->thr = thr;
 
-	search_result = row_search_index_entry(index, entry, mode,
-					       &pcur, &mtr);
+	search_result = row_search_index_entry(entry, mode, &pcur, &mtr);
 
 	switch (search_result) {
 		mem_heap_t*	heap;

@@ -1695,8 +1695,9 @@ err_exit:
 			row, ext, index, heap);
 		mtr->start();
 		index->set_modified(*mtr);
-		error = btr_pcur_open(index, entry, PAGE_CUR_LE,
-				      BTR_PURGE_TREE, pcur, mtr);
+		pcur->btr_cur.page_cur.index = index;
+		error = btr_pcur_open(entry, PAGE_CUR_LE,
+				      BTR_PURGE_TREE, pcur, 0, mtr);
 		if (error) {
 			goto err_exit;
 		}
@@ -1760,6 +1761,7 @@ row_log_table_apply_delete(
 	btr_pcur_t	pcur;
 	rec_offs*	offsets;
 
+	pcur.btr_cur.page_cur.index = index;
 	ut_ad(rec_offs_n_fields(moffsets) == index->first_user_field());
 	ut_ad(!rec_offs_any_extern(moffsets));
 
@@ -1778,8 +1780,8 @@ row_log_table_apply_delete(
 
 	mtr_start(&mtr);
 	index->set_modified(mtr);
-	dberr_t err = btr_pcur_open(index, old_pk, PAGE_CUR_LE,
-				    BTR_PURGE_TREE, &pcur, &mtr);
+	dberr_t err = btr_pcur_open(old_pk, PAGE_CUR_LE,
+				    BTR_PURGE_TREE, &pcur, 0, &mtr);
 	if (err != DB_SUCCESS) {
 		goto all_done;
 	}
@@ -1891,6 +1893,8 @@ row_log_table_apply_update(
 	dberr_t		error;
 	ulint		n_index = 0;
 
+	pcur.btr_cur.page_cur.index = index;
+
 	ut_ad(dtuple_get_n_fields_cmp(old_pk)
 	      == dict_index_get_n_unique(index));
 	ut_ad(dtuple_get_n_fields(old_pk) - (log->same_pk ? 0 : 2)
@@ -1913,8 +1917,8 @@ row_log_table_apply_update(
 
 	mtr.start();
 	index->set_modified(mtr);
-	error = btr_pcur_open(index, old_pk, PAGE_CUR_LE,
-			      BTR_MODIFY_TREE, &pcur, &mtr);
+	error = btr_pcur_open(old_pk, PAGE_CUR_LE,
+			      BTR_MODIFY_TREE, &pcur, 0, &mtr);
 	if (error != DB_SUCCESS) {
 func_exit:
 		mtr.commit();
@@ -2089,7 +2093,7 @@ func_exit_committed:
 		index->set_modified(mtr);
 
 		if (ROW_FOUND != row_search_index_entry(
-			    index, entry, BTR_MODIFY_TREE, &pcur, &mtr)) {
+			    entry, BTR_MODIFY_TREE, &pcur, &mtr)) {
 			ut_ad(0);
 			error = DB_CORRUPTION;
 			break;
@@ -3069,13 +3073,14 @@ row_log_apply_op_low(
 
 	mtr_start(&mtr);
 	index->set_modified(mtr);
+	cursor.page_cur.index = index;
 
 	/* We perform the pessimistic variant of the operations if we
 	already hold index->lock exclusively. First, search the
 	record. The operation may already have been performed,
 	depending on when the row in the clustered index was
 	scanned. */
-	*error = btr_cur_search_to_nth_level(index, 0, entry, PAGE_CUR_LE,
+	*error = btr_cur_search_to_nth_level(0, entry, PAGE_CUR_LE,
 					     has_index_lock
 					     ? BTR_MODIFY_TREE
 					     : BTR_MODIFY_LEAF,
@@ -3130,7 +3135,7 @@ row_log_apply_op_low(
 				mtr_start(&mtr);
 				index->set_modified(mtr);
 				*error = btr_cur_search_to_nth_level(
-					index, 0, entry, PAGE_CUR_LE,
+					0, entry, PAGE_CUR_LE,
 					BTR_MODIFY_TREE, &cursor, &mtr);
 				if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 					goto func_exit;
@@ -3234,7 +3239,7 @@ insert_the_rec:
 				mtr_start(&mtr);
 				index->set_modified(mtr);
 				*error = btr_cur_search_to_nth_level(
-					index, 0, entry, PAGE_CUR_LE,
+					0, entry, PAGE_CUR_LE,
 					BTR_MODIFY_TREE, &cursor, &mtr);
 				if (*error != DB_SUCCESS) {
 					break;

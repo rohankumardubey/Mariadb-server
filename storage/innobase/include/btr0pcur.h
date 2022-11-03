@@ -74,10 +74,7 @@ btr_pcur_init(
 Initializes and opens a persistent cursor to an index tree. */
 inline
 dberr_t
-btr_pcur_open_low(
-/*==============*/
-	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: level in the btree */
+btr_pcur_open(
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
 				NOTE that if the search is made using a unique
@@ -91,11 +88,8 @@ btr_pcur_open_low(
 				(0 if none) */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#define btr_pcur_open(i,t,md,l,c,m)				\
-	btr_pcur_open_low(i,0,t,md,l,c,0,m)
 /** Opens an persistent cursor to an index tree without initializing the
 cursor.
-@param index      index
 @param tuple      tuple on which search done
 @param mode       PAGE_CUR_L, ...; NOTE that if the search is made using a
                   unique prefix of a record, mode should be PAGE_CUR_LE, not
@@ -106,7 +100,7 @@ cursor.
 @param mtr        mini-transaction
 @return DB_SUCCESS on success or error code otherwise. */
 inline
-dberr_t btr_pcur_open_with_no_init(dict_index_t *index, const dtuple_t *tuple,
+dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple,
                                    page_cur_mode_t mode,
                                    btr_latch_mode latch_mode,
                                    btr_pcur_t *cursor, mtr_t *mtr);
@@ -447,7 +441,6 @@ MY_ATTRIBUTE((nonnull, warn_unused_result))
 inline
 dberr_t
 btr_pcur_open_on_user_rec(
-	dict_index_t*	index,		/*!< in: index */
 	const dtuple_t*	tuple,		/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,		/*!< in: PAGE_CUR_L, ... */
 	btr_latch_mode	latch_mode,	/*!< in: BTR_SEARCH_LEAF or
@@ -458,7 +451,7 @@ btr_pcur_open_on_user_rec(
 {
   ut_ad(mode == PAGE_CUR_GE || mode == PAGE_CUR_G);
   ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
-  if (dberr_t err= btr_pcur_open(index, tuple, mode, latch_mode, cursor, mtr))
+  if (dberr_t err= btr_pcur_open(tuple, mode, latch_mode, cursor, 0, mtr))
     return err;
   if (!btr_pcur_is_after_last_on_page(cursor) ||
       btr_pcur_is_after_last_in_tree(cursor))

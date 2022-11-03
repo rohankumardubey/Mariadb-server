@@ -347,8 +347,9 @@ row_purge_remove_sec_if_poss_tree(
 	log_free_check();
 	mtr.start();
 	index->set_modified(mtr);
+	pcur.btr_cur.page_cur.index = index;
 
-	search_result = row_search_index_entry(index, entry, BTR_PURGE_TREE,
+	search_result = row_search_index_entry(entry, BTR_PURGE_TREE,
 					       &pcur, &mtr);
 
 	switch (search_result) {
@@ -452,6 +453,7 @@ row_purge_remove_sec_if_poss_leaf(
 	virtual index. */
 	mode = (index->type & (DICT_SPATIAL | DICT_VIRTUAL))
 		? BTR_MODIFY_LEAF : BTR_PURGE_LEAF;
+	pcur.btr_cur.page_cur.index = index;
 
 	/* Set the purge node for the call to row_purge_poss_sec(). */
 	pcur.btr_cur.purge_node = node;
@@ -459,7 +461,7 @@ row_purge_remove_sec_if_poss_leaf(
 		pcur.btr_cur.thr = NULL;
 		index->lock.u_lock(SRW_LOCK_CALL);
 		search_result = row_search_index_entry(
-			index, entry, mode, &pcur, &mtr);
+			entry, mode, &pcur, &mtr);
 		index->lock.u_unlock();
 	} else {
 		/* Set the query thread, so that ibuf_insert_low() will be
@@ -467,7 +469,7 @@ row_purge_remove_sec_if_poss_leaf(
 		pcur.btr_cur.thr = static_cast<que_thr_t*>(
 			que_node_get_parent(node));
 		search_result = row_search_index_entry(
-			index, entry, mode, &pcur, &mtr);
+			entry, mode, &pcur, &mtr);
 	}
 
 	switch (search_result) {

@@ -2335,9 +2335,11 @@ work_around:
 			space_id, page_nos[i], heap);
 loop:
 		btr_pcur_t pcur;
+		pcur.btr_cur.page_cur.index = ibuf.index;
+
 		ibuf_mtr_start(&mtr);
-		if (btr_pcur_open(ibuf.index, tuple, PAGE_CUR_GE,
-				  BTR_MODIFY_LEAF, &pcur, &mtr)
+		if (btr_pcur_open(tuple, PAGE_CUR_GE,
+				  BTR_MODIFY_LEAF, &pcur, 0, &mtr)
 		    != DB_SUCCESS) {
 			goto done;
 		}
@@ -2467,8 +2469,9 @@ ibuf_merge_space(
 
 	/* Position the cursor on the first matching record. */
 
-	dberr_t err = btr_pcur_open(ibuf.index, tuple, PAGE_CUR_GE,
-				    BTR_SEARCH_LEAF, &pcur, &mtr);
+	pcur.btr_cur.page_cur.index = ibuf.index;
+	dberr_t err = btr_pcur_open(tuple, PAGE_CUR_GE,
+				    BTR_SEARCH_LEAF, &pcur, 0, &mtr);
 	ut_ad(err != DB_SUCCESS || page_validate(btr_pcur_get_page(&pcur),
 						 ibuf.index));
 
@@ -3283,9 +3286,9 @@ ibuf_insert_low(
 	}
 
 	ibuf_mtr_start(&mtr);
+	pcur.btr_cur.page_cur.index = ibuf.index;
 
-	err = btr_pcur_open(ibuf.index, ibuf_entry, PAGE_CUR_LE, mode, &pcur,
-			    &mtr);
+	err = btr_pcur_open(ibuf_entry, PAGE_CUR_LE, mode, &pcur, 0, &mtr);
 	if (err != DB_SUCCESS) {
 func_exit:
 		ibuf_mtr_commit(&mtr);
@@ -4272,13 +4275,14 @@ dberr_t ibuf_merge_or_delete_for_page(buf_block_t *block,
 
 	memset(mops, 0, sizeof(mops));
 	memset(dops, 0, sizeof(dops));
+	pcur.btr_cur.page_cur.index = ibuf.index;
 
 loop:
 	ibuf_mtr_start(&mtr);
 
 	/* Position pcur in the insert buffer at the first entry for this
 	index page */
-	if (btr_pcur_open_on_user_rec(ibuf.index, search_tuple, PAGE_CUR_GE,
+	if (btr_pcur_open_on_user_rec(search_tuple, PAGE_CUR_GE,
 				      BTR_MODIFY_LEAF, &pcur, &mtr)
 	    != DB_SUCCESS) {
 		err = DB_CORRUPTION;
@@ -4431,7 +4435,6 @@ loop:
 			goto loop;
 		} else if (btr_pcur_is_after_last_on_page(&pcur)) {
 			ibuf_mtr_commit(&mtr);
-			ut_free(pcur.old_rec_buf);
 			goto loop;
 		}
 	}
@@ -4479,12 +4482,14 @@ void ibuf_delete_for_discarded_space(ulint space)
 	search_tuple = ibuf_search_tuple_build(space, 0, heap);
 
 	memset(dops, 0, sizeof(dops));
+	pcur.btr_cur.page_cur.index = ibuf.index;
+
 loop:
 	ibuf_mtr_start(&mtr);
 
 	/* Position pcur in the insert buffer at the first entry for the
 	space */
-	if (btr_pcur_open_on_user_rec(ibuf.index, search_tuple, PAGE_CUR_GE,
+	if (btr_pcur_open_on_user_rec(search_tuple, PAGE_CUR_GE,
 				      BTR_MODIFY_LEAF, &pcur, &mtr)
 	    != DB_SUCCESS) {
 		goto leave_loop;

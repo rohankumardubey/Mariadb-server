@@ -148,7 +148,6 @@ to node pointer page number fields on the upper levels of the tree!
 Note that if mode is PAGE_CUR_LE, which is used in inserts, then
 cursor->up_match and cursor->low_match both will have sensible values.
 If mode is PAGE_CUR_GE, then up_match will a have a sensible value.
-@param index      index
 @param level      the tree level of search
 @param tuple      data tuple; NOTE: n_fields_cmp in tuple must be set so that
                   it cannot get compared to the node ptr page number field!
@@ -166,7 +165,7 @@ If mode is PAGE_CUR_GE, then up_match will a have a sensible value.
 @param mtr        mini-transaction
 @param autoinc    PAGE_ROOT_AUTO_INC to be written (0 if none)
 @return DB_SUCCESS on success or error code otherwise */
-dberr_t btr_cur_search_to_nth_level(dict_index_t *index, ulint level,
+dberr_t btr_cur_search_to_nth_level(ulint level,
                                     const dtuple_t *tuple,
                                     page_cur_mode_t mode,
                                     btr_latch_mode latch_mode,
