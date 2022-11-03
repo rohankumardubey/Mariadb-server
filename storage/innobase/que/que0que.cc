@@ -330,6 +330,8 @@ que_graph_free_recursive(
 		upd = static_cast<upd_node_t*>(node);
 
 		que_graph_free_recursive(upd->cascade_node);
+		ut_free(upd->pcur->old_rec_buf);
+		upd->pcur->old_rec_buf = NULL;
 
 		if (upd->cascade_heap) {
 			mem_heap_free(upd->cascade_heap);
