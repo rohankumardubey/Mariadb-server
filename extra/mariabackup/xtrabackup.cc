@@ -4375,6 +4375,7 @@ static void stop_backup_threads(bool running)
       std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
     putc('\n', stderr);
+    mysql_cond_broadcast(&log_copying_stop);
     mysql_cond_destroy(&log_copying_stop);
   }
 
