@@ -351,18 +351,12 @@ rtr_pcur_getnext_from_path(
 						 BTR_PCUR_IS_POSITIONED;
 					r_cursor->latch_mode = my_latch_mode;
 					btr_pcur_store_position(r_cursor, mtr);
-#ifdef UNIV_DEBUG
-					ulint num_stored =
-						rtr_store_parent_path(
-							block, btr_cur,
-							btr_latch_mode(rw_latch),
-							level, mtr);
-					ut_ad(num_stored > 0);
-#else
+					ut_d(ulint num_stored =)
 					rtr_store_parent_path(
-						block, btr_cur, rw_latch,
+						block, btr_cur,
+						btr_latch_mode(rw_latch),
 						level, mtr);
-#endif /* UNIV_DEBUG */
+					ut_ad(num_stored > 0);
 				}
 			}
 		} else {
