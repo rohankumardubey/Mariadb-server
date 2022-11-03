@@ -345,13 +345,10 @@ inline void btr_set_min_rec_mark(rec_t *rec, const buf_block_t &block,
 }
 
 /** Seek to the parent page of a B-tree page.
-@param[in,out]	index	b-tree
-@param[in]	block	child page
 @param[in,out]	mtr	mini-transaction
-@param[out]	cursor	cursor pointing to the x-latched parent page
+@param[in,out]	cursor	cursor pointing to the x-latched parent page
 @return whether the cursor was successfully positioned */
-bool btr_page_get_father(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
-			 btr_cur_t* cursor)
+bool btr_page_get_father(mtr_t* mtr, btr_cur_t* cursor)
 	MY_ATTRIBUTE((nonnull,warn_unused_result));
 #ifdef UNIV_DEBUG
 /************************************************************//**

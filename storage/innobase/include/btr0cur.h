@@ -821,6 +821,7 @@ struct btr_cur_t {
   void init() { memset((void*) this, 0, sizeof *this); }
 
   dict_index_t *index() const { return page_cur.index; }
+  buf_block_t *block() const { return page_cur.block; }
 
   /** Open the cursor on the first or last record.
   @param first         true=first record, false=last record

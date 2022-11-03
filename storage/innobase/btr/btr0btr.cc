@@ -789,44 +789,33 @@ btr_page_get_father_block(
 /*======================*/
 	rec_offs*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	dict_index_t*	index,	/*!< in: b-tree index */
-	buf_block_t*	block,	/*!< in: child page in the index */
 	mtr_t*		mtr,	/*!< in: mtr */
 	btr_cur_t*	cursor)	/*!< out: cursor on node pointer record,
 				its page x-latched */
 {
-	rec_t*	rec
-		= page_rec_get_next(page_get_infimum_rec(buf_block_get_frame(
-								 block)));
-	if (UNIV_UNLIKELY(!rec)) {
-		return nullptr;
-	}
-	btr_cur_position(index, rec, block, cursor);
-	return(btr_page_get_father_node_ptr(offsets, heap, cursor, mtr));
+  rec_t *rec=
+    page_rec_get_next(page_get_infimum_rec(cursor->block()->page.frame));
+  if (UNIV_UNLIKELY(!rec))
+    return nullptr;
+  cursor->page_cur.rec= rec;
+  return btr_page_get_father_node_ptr(offsets, heap, cursor, mtr);
 }
 
 /** Seek to the parent page of a B-tree page.
-@param[in,out]	index	b-tree
-@param[in]	block	child page
 @param[in,out]	mtr	mini-transaction
-@param[out]	cursor	cursor pointing to the x-latched parent page
+@param[in,out]	cursor	cursor pointing to the x-latched parent page
 @return whether the cursor was successfully positioned */
-bool btr_page_get_father(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
-			 btr_cur_t* cursor)
+bool btr_page_get_father(mtr_t* mtr, btr_cur_t* cursor)
 {
-	mem_heap_t*	heap;
-	rec_t*		rec
-		= page_rec_get_next(page_get_infimum_rec(buf_block_get_frame(
-								 block)));
-	if (UNIV_UNLIKELY(!rec)) {
-		return false;
-	}
-	btr_cur_position(index, rec, block, cursor);
-
-	heap = mem_heap_create(100);
-	const bool got = btr_page_get_father_node_ptr(NULL, heap, cursor, mtr);
-	mem_heap_free(heap);
-	return got;
+  rec_t *rec=
+    page_rec_get_next(page_get_infimum_rec(cursor->block()->page.frame));
+  if (UNIV_UNLIKELY(!rec))
+    return false;
+  cursor->page_cur.rec= rec;
+  mem_heap_t *heap= mem_heap_create(100);
+  const bool got= btr_page_get_father_node_ptr(nullptr, heap, cursor, mtr);
+  mem_heap_free(heap);
+  return got;
 }
 
 #ifdef UNIV_DEBUG
@@ -2463,9 +2452,11 @@ btr_attach_half_pages(
 		lower_block = new_block;
 		upper_block = block;
 
+		cursor.page_cur.block = block;
+		cursor.page_cur.index = index;
+
 		/* Look up the index for the node pointer to page */
-		offsets = btr_page_get_father_block(NULL, heap, index,
-						    block, mtr, &cursor);
+		offsets = btr_page_get_father_block(NULL, heap, mtr, &cursor);
 
 		/* Replace the address of the old child node (= page) with the
 		address of the new lower half */
@@ -2655,15 +2646,15 @@ btr_insert_into_right_sibling(
 	next_page = buf_block_get_frame(next_block);
 	const bool is_leaf = page_is_leaf(next_page);
 
-	if (!btr_page_get_father(cursor->index(), next_block, mtr,
-				 &next_father_cursor)) {
+	next_page_cursor.index = cursor->index();
+	next_page_cursor.block = next_block;
+	next_father_cursor.page_cur = next_page_cursor;
+
+	if (!btr_page_get_father(mtr, &next_father_cursor)) {
 		return nullptr;
 	}
 
 	ulint up_match = 0, low_match = 0;
-
-	next_page_cursor.index = cursor->index();
-	next_page_cursor.block = next_block;
 
 	if (page_cur_search_with_match(tuple,
 				       PAGE_CUR_LE, &up_match, &low_match,
@@ -3381,14 +3372,14 @@ btr_lift_page_up(
 			* (REC_OFFS_HEADER_SIZE + 1 + 1
 			   + unsigned(index->n_fields)));
 		buf_block_t*	b;
+		cursor.page_cur.index = index;
+		cursor.page_cur.block = block;
 
 		if (index->is_spatial()) {
-			cursor.page_cur.index = index;
 			offsets = rtr_page_get_father_block(
-				nullptr, heap, block, mtr, nullptr, &cursor);
+				nullptr, heap, mtr, nullptr, &cursor);
 		} else {
 			offsets = btr_page_get_father_block(offsets, heap,
-							    index, block,
 							    mtr, &cursor);
 		}
 		father_block = btr_cur_get_block(&cursor);
@@ -3407,11 +3398,10 @@ btr_lift_page_up(
 
 			if (index->is_spatial()) {
 				offsets = rtr_page_get_father_block(
-					NULL, heap, b, mtr, NULL, &cursor);
+					nullptr, heap, mtr, nullptr, &cursor);
 			} else {
 				offsets = btr_page_get_father_block(offsets,
 								    heap,
-								    index, b,
 								    mtr,
 								    &cursor);
 			}
@@ -3608,11 +3598,12 @@ btr_compress(
 			  page_is_comp(page))));
 
 	heap = mem_heap_create(100);
+	father_cursor.page_cur.index = index;
+	father_cursor.page_cur.block = block;
 
 	if (index->is_spatial()) {
-		father_cursor.page_cur.index = index;
 		offsets = rtr_page_get_father_block(
-			NULL, heap, block, mtr, cursor, &father_cursor);
+			NULL, heap, mtr, cursor, &father_cursor);
 		ut_ad(cursor->page_cur.block->page.id() == block->page.id());
 		rec_t*  my_rec = father_cursor.page_cur.rec;
 
@@ -3623,11 +3614,11 @@ btr_compress(
 				<< page_no << "instead of "
 				<< block->page.id().page_no();
 			offsets = btr_page_get_father_block(
-				NULL, heap, index, block, mtr, &father_cursor);
+				NULL, heap, mtr, &father_cursor);
 		}
 	} else {
 		offsets = btr_page_get_father_block(
-			NULL, heap, index, block, mtr, &father_cursor);
+			NULL, heap, mtr, &father_cursor);
 		ut_ad(!father_cursor.page_cur.block->page.lock.not_recursive()
 		      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
 	}
@@ -3635,8 +3626,16 @@ btr_compress(
 	if (adjust) {
 		nth_rec = page_rec_get_n_recs_before(btr_cur_get_rec(cursor));
 		if (UNIV_UNLIKELY(!nth_rec || nth_rec == ULINT_UNDEFINED)) {
+		corrupted:
 			err = DB_CORRUPTION;
-			goto err_exit;
+		err_exit:
+			/* We play it safe and reset the free bits. */
+			if (merge_block && merge_block->zip_size()
+			    && page_is_leaf(merge_block->page.frame)
+			    && !index->is_clust()) {
+				ibuf_reset_free_bits(merge_block);
+			}
+			goto func_exit;
 		}
 	}
 
@@ -3645,7 +3644,23 @@ btr_compress(
 		to the father */
 
 		merge_block = btr_lift_page_up(index, block, mtr, &err);
-		goto func_exit;
+success:
+		if (adjust) {
+			ut_ad(nth_rec > 0);
+			if (rec_t* nth
+			    = page_rec_get_nth(merge_block->page.frame,
+					       nth_rec)) {
+				btr_cur_position(index, nth,
+						 merge_block, cursor);
+			} else {
+				goto corrupted;
+			}
+		}
+
+		MONITOR_INC(MONITOR_INDEX_MERGE_SUCCESSFUL);
+func_exit:
+		mem_heap_free(heap);
+		DBUG_RETURN(err);
 	}
 
 	ut_d(leftmost_child =
@@ -3681,8 +3696,7 @@ cannot_merge:
 							  : FIL_PAGE_PREV),
 					    block->page.frame
 					    + FIL_PAGE_OFFSET, 4))) {
-		err = DB_CORRUPTION;
-		goto err_exit;
+		goto corrupted;
 	}
 
 	ut_ad(page_validate(merge_page, index));
@@ -3698,9 +3712,12 @@ cannot_merge:
 	}
 #endif /* UNIV_ZIP_DEBUG */
 
+	btr_cur_t cursor2;
+	cursor2.page_cur.index = index;
+	cursor2.page_cur.block = merge_block;
+
 	/* Move records to the merge page */
 	if (is_left) {
-		btr_cur_t	cursor2;
 		rtr_mbr_t	new_mbr;
 		rec_offs*	offsets2 = NULL;
 
@@ -3710,8 +3727,7 @@ cannot_merge:
 			page */
 			if (!rtr_check_same_block(
 				index, &cursor2,
-				btr_cur_get_block(&father_cursor),
-				merge_block, heap)) {
+				btr_cur_get_block(&father_cursor), heap)) {
 				is_left = false;
 				goto retry;
 			}
@@ -3752,7 +3768,7 @@ cannot_merge:
 
 		const page_id_t id{block->page.id()};
 
-		if (dict_index_is_spatial(index)) {
+		if (index->is_spatial()) {
 			rec_t*  my_rec = father_cursor.page_cur.rec;
 
 			ulint page_no = btr_node_ptr_get_child_page_no(
@@ -3788,8 +3804,7 @@ cannot_merge:
 		if (adjust) {
 			ulint n = page_rec_get_n_recs_before(orig_pred);
 			if (UNIV_UNLIKELY(!n || n == ULINT_UNDEFINED)) {
-				err = DB_CORRUPTION;
-				goto err_exit;
+				goto corrupted;
 			}
 			nth_rec += n;
 		}
@@ -3797,22 +3812,16 @@ cannot_merge:
 		rec_t*		orig_succ;
 		ibool		compressed;
 		dberr_t		err;
-		btr_cur_t	cursor2;
-					/* father cursor pointing to node ptr
-					of the right sibling */
 		byte		fil_page_prev[4];
 
-		if (dict_index_is_spatial(index)) {
-			cursor2.rtr_info = NULL;
-
+		if (index->is_spatial()) {
 			/* For spatial index, we disallow merge of blocks
 			with different parents, since the merge would need
 			to update entry (for MBR and Primary key) in the
 			parent of block being merged */
 			if (!rtr_check_same_block(
 				index, &cursor2,
-				btr_cur_get_block(&father_cursor),
-				merge_block, heap)) {
+				btr_cur_get_block(&father_cursor), heap)) {
 				goto cannot_merge;
 			}
 
@@ -3820,8 +3829,7 @@ cannot_merge:
 			necessary in recursive page merge. */
 			cursor2.rtr_info = cursor->rtr_info;
 			cursor2.tree_height = cursor->tree_height;
-		} else if (!btr_page_get_father(index, merge_block, mtr,
-						&cursor2)) {
+		} else if (!btr_page_get_father(mtr, &cursor2)) {
 			goto cannot_merge;
 		}
 
@@ -4008,33 +4016,10 @@ cannot_merge:
         if (err == DB_SUCCESS) {
 		ut_ad(leftmost_child
 		      || btr_check_node_ptr(index, merge_block, mtr));
-func_exit:
-		if (adjust) {
-			ut_ad(nth_rec > 0);
-			if (rec_t* nth
-			    = page_rec_get_nth(merge_block->page.frame,
-					       nth_rec)) {
-				btr_cur_position(index, nth,
-						 merge_block, cursor);
-			} else {
-				err = DB_CORRUPTION;
-				goto err_exit;
-			}
-		}
-
-		MONITOR_INC(MONITOR_INDEX_MERGE_SUCCESSFUL);
+		goto success;
         } else {
-err_exit:
-		/* We play it safe and reset the free bits. */
-		if (merge_block && merge_block->zip_size()
-                    && page_is_leaf(merge_block->page.frame)
-                    && !index->is_clust()) {
-			ibuf_reset_free_bits(merge_block);
-                }
+		goto err_exit;
         }
-
-	mem_heap_free(heap);
-	DBUG_RETURN(err);
 }
 
 /*************************************************************//**
@@ -4077,16 +4062,16 @@ btr_discard_only_page_on_level(
 		ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 		btr_search_drop_page_hash_index(block);
 		cursor.page_cur.index = index;
+		cursor.page_cur.block = block;
 
 		if (index->is_spatial()) {
 			/* Check any concurrent search having this page */
 			rtr_check_discard_page(index, NULL, block);
-			if (!rtr_page_get_father(block, mtr, nullptr,
-						 &cursor)) {
+			if (!rtr_page_get_father(mtr, nullptr, &cursor)) {
 				return;
 			}
 		} else {
-			if (!btr_page_get_father(index, block, mtr, &cursor)) {
+			if (!btr_page_get_father(mtr, &cursor)) {
 				return;
 			}
 		}
@@ -4176,7 +4161,7 @@ btr_discard_page(
 
 	block = btr_cur_get_block(cursor);
 	index = btr_cur_get_index(cursor);
-	parent_cursor.page_cur.index = index;
+	parent_cursor.page_cur = cursor->page_cur;
 
 	ut_ad(dict_index_get_page(index) != block->page.id().page_no());
 
@@ -4187,8 +4172,8 @@ btr_discard_page(
 	MONITOR_INC(MONITOR_INDEX_DISCARD);
 
 	if (index->is_spatial()
-	    ? !rtr_page_get_father(block, mtr, cursor, &parent_cursor)
-	    : !btr_page_get_father(index, block, mtr, &parent_cursor)) {
+	    ? !rtr_page_get_father(mtr, cursor, &parent_cursor)
+	    : !btr_page_get_father(mtr, &parent_cursor)) {
 		return DB_CORRUPTION;
 	}
 
@@ -4483,15 +4468,15 @@ btr_check_node_ptr(
 	}
 
 	cursor.page_cur.index = index;
+	cursor.page_cur.block = block;
 
 	heap = mem_heap_create(256);
 
 	if (dict_index_is_spatial(index)) {
-		offsets = rtr_page_get_father_block(NULL, heap, block, mtr,
+		offsets = rtr_page_get_father_block(NULL, heap, mtr,
 						    NULL, &cursor);
 	} else {
-		offsets = btr_page_get_father_block(NULL, heap, index, block, mtr,
-						    &cursor);
+		offsets = btr_page_get_father_block(NULL, heap, mtr, &cursor);
 	}
 
 	if (page_is_leaf(page)) {

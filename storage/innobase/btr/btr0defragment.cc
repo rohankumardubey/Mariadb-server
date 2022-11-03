@@ -405,7 +405,10 @@ btr_defragment_merge_pages(
 		}
 	}
 	btr_cur_t parent;
-	if (!btr_page_get_father(index, from_block, mtr, &parent)) {
+	parent.page_cur.index = index;
+	parent.page_cur.block = from_block;
+
+	if (!btr_page_get_father(mtr, &parent)) {
 		to_block = nullptr;
 	} else if (n_recs_to_move == n_recs) {
 		/* The whole page is merged with the previous page,

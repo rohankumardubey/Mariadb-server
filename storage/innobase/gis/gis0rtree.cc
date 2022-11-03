@@ -573,6 +573,7 @@ rtr_adjust_upper_level(
 
 	cursor.thr = sea_cur->thr;
 	cursor.page_cur.index = sea_cur->index();
+	cursor.page_cur.block = block;
 
 	/* Get the level of the split pages */
 	level = btr_page_get_level(buf_block_get_frame(block));
@@ -584,8 +585,7 @@ rtr_adjust_upper_level(
 
 	/* Set new mbr for the old page on the upper level. */
 	/* Look up the index for the node pointer to page */
-	offsets = rtr_page_get_father_block(
-		NULL, heap, block, mtr, sea_cur, &cursor);
+	offsets = rtr_page_get_father_block(NULL, heap, mtr, sea_cur, &cursor);
 
 	page_cursor = btr_cur_get_page_cur(&cursor);
 
@@ -1250,6 +1250,7 @@ rtr_ins_enlarge_mbr(
 	/* Leaf level page is stored in cursor */
 	page_cursor = btr_cur_get_page_cur(btr_cur);
 	block = page_cur_get_block(page_cursor);
+	cursor.init();
 
 	for (ulint i = 1; i < btr_cur->tree_height; i++) {
 		node_visit = rtr_get_parent_node(btr_cur, i, true);
@@ -1265,10 +1266,10 @@ rtr_ins_enlarge_mbr(
 		rtr_page_cal_mbr(page_cursor->index, block, &new_mbr, heap);
 
 		/* Get father block. */
-		cursor.init();
 		cursor.page_cur.index = page_cursor->index;
+		cursor.page_cur.block = block;
 		offsets = rtr_page_get_father_block(
-			NULL, heap, block, mtr, btr_cur, &cursor);
+			NULL, heap, mtr, btr_cur, &cursor);
 
 		page = buf_block_get_frame(block);
 
@@ -1635,11 +1636,11 @@ rtr_check_same_block(
 	btr_cur_t*	cursor,	/*!< in/out: position at the parent entry
 				pointing to the child if successful */
 	buf_block_t*	parentb,/*!< in: parent page to check */
-	buf_block_t*	childb,	/*!< in: child Page */
 	mem_heap_t*	heap)	/*!< in: memory heap */
 
 {
-	ulint		page_no = childb->page.id().page_no();
+	const uint32_t	page_no =
+		btr_cur_get_block(cursor)->page.id().page_no();
 	rec_offs*	offsets;
 	rec_t*		rec = page_get_infimum_rec(parentb->page.frame);
 

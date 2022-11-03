@@ -602,18 +602,16 @@ rtr_pcur_open(
 }
 
 /* Get the rtree page father.
-@param[in]	block		child page in the index
 @param[in,out]	mtr		mtr
 @param[in]	sea_cur		search cursor, contains information
 				about parent nodes in search
 @param[out]	cursor		cursor on node pointer record,
 				its page x-latched
 @return whether the cursor was successfully positioned */
-bool rtr_page_get_father(buf_block_t *block, mtr_t *mtr, btr_cur_t *sea_cur,
-                         btr_cur_t *cursor)
+bool rtr_page_get_father(mtr_t *mtr, btr_cur_t *sea_cur, btr_cur_t *cursor)
 {
   mem_heap_t *heap = mem_heap_create(100);
-  rec_offs *offsets= rtr_page_get_father_block(nullptr, heap, block,
+  rec_offs *offsets= rtr_page_get_father_block(nullptr, heap,
                                                mtr, sea_cur, cursor);
   mem_heap_free(heap);
   return offsets != nullptr;
@@ -782,22 +780,18 @@ rtr_page_get_father_block(
 /*======================*/
 	rec_offs*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	buf_block_t*	block,	/*!< in: child page in the index */
 	mtr_t*		mtr,	/*!< in: mtr */
 	btr_cur_t*	sea_cur,/*!< in: search cursor, contains information
 				about parent nodes in search */
 	btr_cur_t*	cursor)	/*!< out: cursor on node pointer record,
 				its page x-latched */
 {
-	rec_t*  rec = page_rec_get_next(
-		page_get_infimum_rec(buf_block_get_frame(block)));
-	if (!rec) {
-		return nullptr;
-	}
-	page_cur_position(rec, block, btr_cur_get_page_cur(cursor));
-
-	return(rtr_page_get_father_node_ptr(offsets, heap, sea_cur,
-					    cursor, mtr));
+  rec_t *rec=
+    page_rec_get_next(page_get_infimum_rec(cursor->block()->page.frame));
+  if (!rec)
+    return nullptr;
+  cursor->page_cur.rec= rec;
+  return rtr_page_get_father_node_ptr(offsets, heap, sea_cur, cursor, mtr);
 }
 
 /*******************************************************************//**

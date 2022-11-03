@@ -2567,11 +2567,8 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
           /* release upper blocks */
           for (; n_releases < n_blocks; n_releases++)
             mtr_release_block_at_savepoint(mtr,
-#if 0
-                                           savepoint + n_releases,
-#else
+                                           /*savepoint + n_releases,*/
                                            tree_savepoints[n_releases],
-#endif
                                            tree_blocks[n_releases]);
         }
         break;
@@ -5938,6 +5935,10 @@ discard_page:
 			goto err_exit;
 		}
 
+		btr_cur_t cursor;
+		cursor.page_cur.index = index;
+		cursor.page_cur.block = block;
+
 		if (!page_has_prev(page)) {
 			/* If we delete the leftmost node pointer on a
 			non-leaf level, we must mark the new leftmost node
@@ -5949,22 +5950,19 @@ discard_page:
 			we need to update parent page. */
 			rtr_mbr_t	father_mbr;
 			rec_t*		father_rec;
-			btr_cur_t	father_cursor;
 			rec_offs*	offsets;
 			ulint		len;
 
-			father_cursor.page_cur.index = index;
-			rtr_page_get_father_block(NULL, heap, block, mtr, NULL,
-						  &father_cursor);
-			offsets = rec_get_offsets(
-				btr_cur_get_rec(&father_cursor), index, NULL,
-				0, ULINT_UNDEFINED, &heap);
+			rtr_page_get_father_block(NULL, heap, mtr, NULL,
+						  &cursor);
+			father_rec = btr_cur_get_rec(&cursor);
+			offsets = rec_get_offsets(father_rec, index, NULL,
+						  0, ULINT_UNDEFINED, &heap);
 
-			father_rec = btr_cur_get_rec(&father_cursor);
 			rtr_read_mbr(rec_get_nth_field(
 				father_rec, offsets, 0, &len), &father_mbr);
 
-			rtr_update_mbr_field(&father_cursor, offsets, NULL,
+			rtr_update_mbr_field(&cursor, offsets, NULL,
 					     page, &father_mbr, next_rec, mtr);
 			ut_d(parent_latched = true);
 		} else {
@@ -5972,8 +5970,7 @@ discard_page:
 			on a page, we have to change the parent node pointer
 			so that it is equal to the new leftmost node pointer
 			on the page */
-			btr_cur_t cursor;
-			ret = btr_page_get_father(index, block, mtr, &cursor);
+			ret = btr_page_get_father(mtr, &cursor);
 			if (!ret) {
 				*err = DB_CORRUPTION;
 				goto err_exit;
