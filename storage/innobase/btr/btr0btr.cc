@@ -3043,8 +3043,8 @@ insert_empty:
 	    && page_is_leaf(page)
 	    && !dict_index_is_online_ddl(cursor->index())) {
 
-		mtr->memo_release(&cursor->index()->lock,
-				  MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK);
+		mtr->memo_release(&cursor->index()->lock, MTR_MEMO_SX_LOCK);
+		mtr->memo_release(&cursor->index()->lock, MTR_MEMO_X_LOCK);
 
 		/* NOTE: We cannot release root block latch here, because it
 		has segment header and already modified in most of cases.*/

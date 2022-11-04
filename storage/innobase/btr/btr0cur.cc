@@ -2462,7 +2462,7 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
     /* Most of delete-intended operations are purging. Free blocks
     and read IO bandwidth should be prioritized for them, when the
     history list is growing huge. */
-    savepoint+= sizeof(mtr_memo_slot_t);
+    savepoint++;
     if (lock_intention == BTR_INTENTION_DELETE
         && buf_pool.n_pend_reads
         && trx_sys.history_size_approx() > BTR_CUR_FINE_HISTORY_LENGTH)
@@ -2478,7 +2478,7 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
     if (latch_by_caller)
       break;
     ut_ad(latch_mode != BTR_SEARCH_TREE);
-    savepoint+= sizeof(mtr_memo_slot_t);
+    savepoint++;
     mtr_s_lock_index(index, mtr);
   }
 
@@ -2499,7 +2499,7 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
   {
     ut_ad(n_blocks < BTR_MAX_LEVELS);
 #if 0 // FIXME: encryption.innodb_onlinealter_encryption innodb.alter_algorithm
-    ut_ad(savepoint + n_blocks * sizeof(mtr_memo_slot_t) == mtr->get_savepoint());
+    ut_ad(savepoint + n_blocks == mtr->get_savepoint());
 #endif
     tree_savepoints[n_blocks]= mtr->get_savepoint();
 
@@ -2560,8 +2560,7 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
             break;
           if (!latch_by_caller)
             /* Release the tree s-latch */
-            mtr->release_s_latch_at_savepoint(savepoint -
-                                              sizeof(mtr_memo_slot_t),
+            mtr->release_s_latch_at_savepoint(savepoint - 1,
                                               &index->lock);
 
           /* release upper blocks */
@@ -5296,8 +5295,8 @@ btr_cur_pessimistic_update(
 		    && page_is_leaf(block->page.frame)
 		    && !dict_index_is_online_ddl(index)) {
 
-			mtr_memo_release(mtr, &index->lock,
-					 MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK);
+			mtr->memo_release(&index->lock, MTR_MEMO_SX_LOCK);
+			mtr->memo_release(&index->lock, MTR_MEMO_X_LOCK);
 
 			/* NOTE: We cannot release root block latch here, because it
 			has segment header and already modified in most of cases.*/
@@ -5330,7 +5329,7 @@ btr_cur_pessimistic_update(
 
 		/* btr_page_split_and_insert() in
 		btr_cur_pessimistic_insert() invokes
-		mtr_memo_release(mtr, index->lock, MTR_MEMO_SX_LOCK).
+		mtr->memo_release(&index->lock, MTR_MEMO_SX_LOCK).
 		We must keep the index->lock when we created a
 		big_rec, so that row_upd_clust_rec() can store the
 		big_rec in the same mini-transaction. */
@@ -6047,8 +6046,8 @@ err_exit:
 	    && page_is_leaf(page)
 	    && !dict_index_is_online_ddl(index)) {
 
-		mtr_memo_release(mtr, &index->lock,
-				 MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK);
+		mtr->memo_release(&index->lock, MTR_MEMO_SX_LOCK);
+		mtr->memo_release(&index->lock, MTR_MEMO_X_LOCK);
 
 		/* NOTE: We cannot release root block latch here, because it
 		has segment header and already modified in most of cases.*/

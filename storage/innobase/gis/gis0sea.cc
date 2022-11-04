@@ -438,11 +438,11 @@ rtr_pcur_getnext_from_path(
 
 	const rec_t* rec = btr_cur_get_rec(btr_cur);
 
-	if (page_rec_is_infimum(rec) || page_rec_is_supremum(rec)) {
-		mtr_commit(mtr);
-		mtr_start(mtr);
+	if (!page_rec_is_user_rec(rec)) {
+		mtr->commit();
+		mtr->start();
 	} else if (!index_locked) {
-		mtr_memo_release(mtr, &index->lock, MTR_MEMO_X_LOCK);
+		mtr->memo_release(&index->lock, MTR_MEMO_X_LOCK);
 	}
 
 	return(found);
