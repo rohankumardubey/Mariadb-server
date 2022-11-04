@@ -2063,7 +2063,7 @@ func_exit_committed:
 
 	for (n_index += index->type != DICT_CLUSTERED;
 	     (index = dict_table_get_next_index(index)); n_index++) {
-		if (index->type & DICT_FTS) {
+		if (!index->is_btree()) {
 			continue;
 		}
 
@@ -2091,6 +2091,7 @@ func_exit_committed:
 
 		mtr.start();
 		index->set_modified(mtr);
+		pcur.btr_cur.page_cur.index = index;
 
 		if (ROW_FOUND != row_search_index_entry(
 			    entry, BTR_MODIFY_TREE, &pcur, &mtr)) {
@@ -3954,8 +3955,8 @@ void UndorecApplier::log_insert(const dtuple_t &tuple,
     }
 
     bool success= true;
-    dict_index_t *index= dict_table_get_next_index(clust_index);
-    while (index)
+    for (dict_index_t *index= clust_index;
+         (index= dict_table_get_next_index(index)) != nullptr; )
     {
       index->lock.s_lock(SRW_LOCK_CALL);
       if (index->online_log &&
@@ -3974,7 +3975,6 @@ void UndorecApplier::log_insert(const dtuple_t &tuple,
         row_log_mark_other_online_index_abort(index->table);
         return;
       }
-      index= dict_table_get_next_index(index);
     }
   }
 }
