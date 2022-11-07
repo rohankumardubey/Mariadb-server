@@ -216,19 +216,14 @@ void mtr_t::commit()
   release_resources();
 }
 
-/** Release latches till savepoint. To simplify the code only
-MTR_MEMO_S_LOCK and MTR_MEMO_PAGE_S_FIX slot types are allowed to be
-released, otherwise it would be neccesary to add one more argument in the
-function to point out what slot types are allowed for rollback, and this
-would be overengineering as corrently the function is used only in one place
-in the code.
-@param savepoint   savepoint, can be obtained with get_savepoint */
-void mtr_t::rollback_to_savepoint(ulint savepoint)
+void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
 {
   ut_ad(m_memo);
-  ulint s= m_memo->size();
-  ut_ad(s >= savepoint);
-  while (s-- > savepoint)
+  ut_ad(end <= m_memo->size());
+  ut_ad(begin <= end);
+  ulint s= end;
+
+  while (s-- > begin)
   {
     const mtr_memo_slot_t &slot= (*m_memo)[s];
     if (!slot.object)
@@ -238,7 +233,8 @@ void mtr_t::rollback_to_savepoint(ulint savepoint)
     ut_ad(slot.type < MTR_MEMO_MODIFY);
     slot.release();
   }
-  m_memo->erase(m_memo->begin() + savepoint, m_memo->end());
+
+  m_memo->erase(m_memo->begin() + begin, m_memo->begin() + end);
 }
 
 /** Commit a mini-transaction that is shrinking a tablespace.

@@ -172,21 +172,6 @@ dberr_t btr_cur_search_to_nth_level(ulint level,
                                     btr_cur_t *cursor, mtr_t *mtr,
                                     ib_uint64_t autoinc= 0);
 
-/*****************************************************************//**
-Opens a cursor at either end of an index.
-@return DB_SUCCESS or error code */
-dberr_t
-btr_cur_open_at_index_side(
-	bool		from_left,	/*!< in: true if open to the low end,
-					false if to the high end */
-	dict_index_t*	index,		/*!< in: index */
-	btr_latch_mode	latch_mode,	/*!< in: latch mode */
-	btr_cur_t*	cursor,		/*!< in/out: cursor */
-	ulint		level,		/*!< in: level to search for
-					(0=leaf) */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
 @return true if the index is available and we have put the cursor, false
@@ -815,10 +800,7 @@ struct btr_cur_t {
 					information of the path through
 					the tree */
 	rtr_info_t*	rtr_info;	/*!< rtree search info */
-	btr_cur_t():thr(NULL), rtr_info(NULL) {}
-					/* default values */
-  /** Zero-initialize all fields */
-  void init() { memset((void*) this, 0, sizeof *this); }
+  btr_cur_t() { memset((void*) this, 0, sizeof *this); }
 
   dict_index_t *index() const { return page_cur.index; }
   buf_block_t *block() const { return page_cur.block; }

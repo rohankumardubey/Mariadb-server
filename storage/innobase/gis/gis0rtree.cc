@@ -569,7 +569,6 @@ rtr_adjust_upper_level(
 
 	/* Create a memory heap where the data tuple is stored */
 	heap = mem_heap_create(1024);
-	cursor.init();
 
 	cursor.thr = sea_cur->thr;
 	cursor.page_cur.index = sea_cur->index();
@@ -1250,7 +1249,6 @@ rtr_ins_enlarge_mbr(
 	/* Leaf level page is stored in cursor */
 	page_cursor = btr_cur_get_page_cur(btr_cur);
 	block = page_cur_get_block(page_cursor);
-	cursor.init();
 
 	for (ulint i = 1; i < btr_cur->tree_height; i++) {
 		node_visit = rtr_get_parent_node(btr_cur, i, true);

@@ -367,8 +367,6 @@ struct btr_pcur_t
   /** old_rec_buf size if old_rec_buf is not NULL */
   ulint buf_size= 0;
 
-  btr_pcur_t() : btr_cur() { btr_cur.init(); }
-
   /** Return the index of this persistent cursor */
   dict_index_t *index() const { return(btr_cur.index()); }
   MY_ATTRIBUTE((nonnull, warn_unused_result))
