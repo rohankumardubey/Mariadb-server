@@ -4974,10 +4974,10 @@ btr_cur_pessimistic_update(
 		    && !big_rec_vec
 		    && page_is_leaf(block->page.frame)
 		    && !dict_index_is_online_ddl(index)) {
-
+#if 0 // FIXME: this used to be a no-op, and will cause trouble if enabled
 			mtr->memo_release(&index->lock, MTR_MEMO_SX_LOCK);
 			mtr->memo_release(&index->lock, MTR_MEMO_X_LOCK);
-
+#endif
 			/* NOTE: We cannot release root block latch here, because it
 			has segment header and already modified in most of cases.*/
 		}
@@ -5725,10 +5725,10 @@ err_exit:
 	if (!srv_read_only_mode
 	    && page_is_leaf(page)
 	    && !dict_index_is_online_ddl(index)) {
-
+#if 0 // FIXME: this used to be a no-op, and will cause trouble if enabled
 		mtr->memo_release(&index->lock, MTR_MEMO_SX_LOCK);
 		mtr->memo_release(&index->lock, MTR_MEMO_X_LOCK);
-
+#endif
 		/* NOTE: We cannot release root block latch here, because it
 		has segment header and already modified in most of cases.*/
 	}
