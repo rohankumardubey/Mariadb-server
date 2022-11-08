@@ -16,7 +16,7 @@ OPTIMIZER_COSTS	CREATE TEMPORARY TABLE `OPTIMIZER_COSTS` (
   `OPTIMIZER_ROW_LOOKUP_COST` decimal(9,6) NOT NULL,
   `OPTIMIZER_ROW_NEXT_FIND_COST` decimal(9,6) NOT NULL,
   `OPTIMIZER_ROWID_COMPARE_COST` decimal(9,6) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 select * from information_schema.optimizer_costs where engine in
 ("memory","innodb","aria","default") order by engine;
 ENGINE	Aria
