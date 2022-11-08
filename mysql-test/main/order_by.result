@@ -1556,6 +1556,9 @@ ANALYZE FORMAT=JSON
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
